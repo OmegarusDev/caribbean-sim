@@ -147,3 +147,90 @@ export class SailControl {
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
+
+/**
+ * FireControl — the broadside trigger with a per-side readiness gauge.
+ * Port readiness fills the left arc, starboard the right; a side is "ready"
+ * when its guns are loaded AND an enemy sits in that arc. Pressing fires
+ * every qualified side; guns within the early-press grace still go off.
+ */
+
+export interface FireReadiness {
+  loadedFrac: number;
+  hasTarget: boolean;
+}
+
+export class FireControl {
+  readonly el: HTMLElement;
+  private portFill: SVGPathElement | null = null;
+  private starFill: SVGPathElement | null = null;
+  private statusEl: HTMLElement | null = null;
+  private readonly onFire: () => void;
+
+  constructor(onFire: () => void) {
+    this.onFire = onFire;
+    this.el = document.createElement('div');
+    this.el.className = 'fire-ctl';
+    this.el.innerHTML = `
+      <svg viewBox="0 0 220 120" aria-hidden="true">
+        <path class="fire-gauge" data-side="port" d="${arcPath(110, 60, 50, 155, 205)}"/>
+        <path class="fire-gauge" data-side="star" d="${arcPath(110, 60, 50, -25, 25)}"/>
+        <circle class="fire-btn" cx="110" cy="60" r="42"/>
+        <text x="110" y="67" class="fire-label" text-anchor="middle">FIRE</text>
+      </svg>
+      <div class="fire-status">LOADING</div>`;
+    this.portFill = this.el.querySelector('[data-side="port"]');
+    this.starFill = this.el.querySelector('[data-side="star"]');
+    this.statusEl = this.el.querySelector('.fire-status');
+    this.el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.press();
+    });
+  }
+
+  private press(): void {
+    this.onFire();
+  }
+
+  /** Fraction of the gauge arc to show (0..1). */
+  private static arcLen(spanDeg: number): number {
+    return (spanDeg * Math.PI) / 180 * 50;
+  }
+
+  update(port: FireReadiness, star: FireReadiness): void {
+    const set = (fill: SVGPathElement | null, r: FireReadiness, span: number) => {
+      if (!fill) return;
+      const len = FireControl.arcLen(span);
+      fill.style.strokeDasharray = `${(len * r.loadedFrac).toFixed(1)} ${len.toFixed(1)}`;
+      fill.classList.toggle('is-ready', r.loadedFrac >= 0.99 && r.hasTarget);
+      fill.classList.toggle('is-armed', r.loadedFrac > 0 && r.hasTarget);
+      fill.classList.toggle('is-dark', !r.hasTarget);
+    };
+    set(this.portFill, port, 50);
+    set(this.starFill, star, 50);
+    const anyReady = (port.loadedFrac >= 0.99 && port.hasTarget) || (star.loadedFrac >= 0.99 && star.hasTarget);
+    const anyArmed = (port.loadedFrac > 0 && port.hasTarget) || (star.loadedFrac > 0 && star.hasTarget);
+    this.el.classList.toggle('is-ready', anyReady);
+    this.el.classList.toggle('is-armed', anyArmed);
+    if (this.statusEl) {
+      const text = anyReady
+        ? 'BROADSIDE READY'
+        : anyArmed
+          ? 'LOADING'
+          : port.hasTarget || star.hasTarget
+            ? 'NO TARGET IN ARC'
+            : 'NO ENEMY SIGHTED';
+      if (this.statusEl.textContent !== text) this.statusEl.textContent = text;
+    }
+  }
+}
+
+/** SVG arc path (degrees, y-down, sweep 1). */
+function arcPath(cx: number, cy: number, r: number, a1: number, a2: number): string {
+  const rad = (a: number) => (a * Math.PI) / 180;
+  const x1 = cx + r * Math.cos(rad(a1));
+  const y1 = cy + r * Math.sin(rad(a1));
+  const x2 = cx + r * Math.cos(rad(a2));
+  const y2 = cy + r * Math.sin(rad(a2));
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}

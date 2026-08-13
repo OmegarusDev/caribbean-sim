@@ -34,7 +34,7 @@ function testShip(partial: Partial<ShipState> = {}): ShipState {
     maxMorale: 100,
     onFire: false,
     fireT: 0,
-    reload: 0,
+    guns: [],
     intention: 'HOLD',
     targetId: null,
     grappledWith: null,

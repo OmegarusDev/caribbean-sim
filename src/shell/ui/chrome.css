@@ -714,6 +714,84 @@ button.danger {
   color: var(--muted);
 }
 
+/* ── Fire control (Captain mode) ─────────────────────────── */
+
+.fire-ctl {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + 156px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(180px, 32vw);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.fire-ctl svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45));
+}
+
+.fire-gauge {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.4;
+  transition: opacity 160ms ease, stroke 160ms ease;
+}
+
+.fire-gauge.is-armed {
+  opacity: 0.85;
+}
+
+.fire-gauge.is-ready {
+  opacity: 1;
+  stroke: var(--ally);
+}
+
+.fire-gauge.is-dark {
+  opacity: 0.1;
+}
+
+.fire-btn {
+  fill: var(--panel);
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  transition: fill 160ms ease, stroke 160ms ease;
+}
+
+.fire-ctl.is-ready .fire-btn {
+  fill: rgba(111, 176, 122, 0.28);
+  stroke: var(--ally);
+}
+
+.fire-label {
+  fill: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: var(--font-ui);
+}
+
+.fire-ctl.is-ready .fire-label {
+  fill: var(--ally);
+}
+
+.fire-status {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.fire-ctl.is-ready .fire-status {
+  color: var(--ally);
+}
+
 .hud-bar {
   position: absolute;
   left: 0;

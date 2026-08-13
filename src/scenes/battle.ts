@@ -31,7 +31,7 @@ import type { WorldEntity } from '../gfx/world/entities';
 import type { GlContext } from '../gfx/core/context';
 import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
 import { el } from '../shell/ui/dom';
-import { SailControl, WheelControl } from '../shell/ui/controls';
+import { FireControl, SailControl, WheelControl } from '../shell/ui/controls';
 
 export interface BattleDeps {
   chrome: HTMLElement;
@@ -65,6 +65,7 @@ export class BattleScene implements Scene {
   private readonly mode: 'auto' | 'captain';
   private wheel: WheelControl | null = null;
   private sail: SailControl | null = null;
+  private fireCtl: FireControl | null = null;
   private speed = 1;
   private paused = false;
   private finished = false;
@@ -117,8 +118,8 @@ export class BattleScene implements Scene {
     if (this.mode === 'captain') {
       const player = this.playerShip();
       this.caption = player
-        ? `You sail the ${player.name} — helm to your wheel, sails to your slider`
-        : 'You sail — helm to your wheel, sails to your slider';
+        ? `You sail the ${player.name} — wheel to steer, slider to trim, FIRE to loose the broadside`
+        : 'You sail — wheel to steer, slider to trim, FIRE to loose the broadside';
       this.captionLife = 4.5;
       this.hudDirty = true;
     }
@@ -188,6 +189,7 @@ export class BattleScene implements Scene {
 
     this.handleClick();
     this.refreshHud();
+    this.updateFireControl();
   }
 
   render(w: number, h: number): void {
@@ -279,6 +281,25 @@ export class BattleScene implements Scene {
     if (this.sail) player.sailState = this.sail.value;
   }
 
+  private fire(): void {
+    if (this.paused || this.finished) return;
+    const player = this.playerShip();
+    if (!player || player.sunk || player.struck) return;
+    this.battle.fireRequest(player.id);
+  }
+
+  private updateFireControl(): void {
+    if (!this.fireCtl) return;
+    const player = this.playerShip();
+    if (!player || player.sunk || player.struck) {
+      this.fireCtl.el.classList.add('is-hidden');
+      return;
+    }
+    this.fireCtl.el.classList.remove('is-hidden');
+    const r = this.battle.shipReadiness(player.id);
+    if (r) this.fireCtl.update(r.port, r.starboard);
+  }
+
   private lastDt = 1 / 60;
   private lastW = 800;
   private lastH = 600;
@@ -300,6 +321,10 @@ export class BattleScene implements Scene {
     if (input.wasKeyPressed('KeyR')) return { type: 'RESTART' };
     if (input.wasKeyPressed('KeyN')) return { type: 'REROLL' };
     if (this.mode === 'captain') {
+      if (input.wasKeyPressed('Space') || input.wasKeyPressed('KeyF')) {
+        this.fire();
+        return { type: 'NONE' };
+      }
       if (input.wasKeyPressed('ArrowRight') || input.wasKeyPressed('KeyD')) {
         this.wheel?.setValue(this.wheel.value + 0.2);
         return { type: 'NONE' };
@@ -498,9 +523,10 @@ export class BattleScene implements Scene {
     if (this.mode === 'captain') {
       this.wheel = new WheelControl(() => {});
       this.sail = new SailControl(() => {});
+      this.fireCtl = new FireControl(() => this.fire());
       this.wheel.el.classList.add('is-captain');
       this.sail.el.classList.add('is-captain');
-      this.root.append(this.wheel.el, this.sail.el);
+      this.root.append(this.wheel.el, this.sail.el, this.fireCtl.el);
     }
 
     const bar = el('div', { className: 'hud-bar' });

@@ -23,6 +23,18 @@ export interface Captain {
   determination: number;
 }
 
+/** One cannon: loaded individually at its own rate (side, remaining, max). */
+export interface GunState {
+  side: -1 | 1;
+  reload: number;
+  max: number;
+}
+
+export interface ShipReadiness {
+  port: { loadedFrac: number; hasTarget: boolean };
+  starboard: { loadedFrac: number; hasTarget: boolean };
+}
+
 export interface ShipState {
   id: string;
   team: 0 | 1;
@@ -47,7 +59,7 @@ export interface ShipState {
   maxMorale: number;
   onFire: boolean;
   fireT: number;
-  reload: number;
+  guns: GunState[];
   intention: ShipIntention;
   targetId: string | null;
   grappledWith: string | null;

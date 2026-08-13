@@ -126,7 +126,7 @@ export function makePreviewShip(
     maxMorale: cls.maxMorale,
     onFire: false,
     fireT: 0,
-    reload: 0,
+    guns: [],
     intention: 'HOLD',
     targetId: null,
     grappledWith: null,

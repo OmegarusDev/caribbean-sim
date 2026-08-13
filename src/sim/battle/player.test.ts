@@ -31,6 +31,15 @@ describe('captain mode (player ship)', () => {
     expect(player.boardLeader).toBe(false);
   });
 
+  it('still sinks and strikes like any ship (battle can end)', () => {
+    const battle = new Battle(makeCaptainConfig('sloop', 'sloop', 31337));
+    const player = battle.ships.find((s) => s.id === 't0s0')!;
+    player.hull = 1;
+    for (let i = 0; i < 600 && battle.phase === 'ongoing'; i++) battle.step();
+    expect(player.sunk || player.struck).toBe(true);
+    expect(battle.phase).toBe('ended');
+  });
+
   it('still auto-fires its broadsides', () => {
     const battle = new Battle(makeCaptainConfig('frigate', 'frigate', 555));
     const player = battle.ships.find((s) => s.id === 't0s0')!;

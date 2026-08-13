@@ -13,6 +13,8 @@ import type {
   BattleResult,
   BattlePhase,
   Captain,
+  GunState,
+  ShipReadiness,
   ShipState,
 } from './types';
 import { BATTLE_TICK, DEFAULT_MAX_TICKS } from './types';
@@ -20,6 +22,8 @@ import { BATTLE_TICK, DEFAULT_MAX_TICKS } from './types';
 /** Hull grip on the water — lateral velocity decays fast so the hull faces
  * its course; hard turns leave only ~10-15° of leeway (realistic crab). */
 const DRIFT = 3.6;
+/** Pressing fire early: guns within this fraction of their reload still go off. */
+const EARLY_FIRE_FRAC = 0.15;
 const GRAPPLE_MULT = 0.55;
 const BOARD_RESOLVE_TICKS = 10;
 const BOARD_MAX_TICKS = 600;
@@ -71,7 +75,9 @@ export class Battle {
             ? SHIP_NAMES_A[idx % SHIP_NAMES_A.length]
             : SHIP_NAMES_B[idx % SHIP_NAMES_B.length]);
         const captain: Captain = captains?.[i] ?? rollCaptain(this.rng);
-        this.ships.push(createShip(`t${team}s${i}`, team, name, hullClass, captain, x, y, facing));
+        const ship = createShip(`t${team}s${i}`, team, name, hullClass, captain, x, y, facing);
+        ship.guns = initGuns(this.rng, hullClass);
+        this.ships.push(ship);
         idx++;
       }
     }
@@ -111,8 +117,15 @@ export class Battle {
     this.resolveBoarding();
     for (const ship of this.ships) {
       if (ship.sunk || ship.struck) continue;
+      for (const gun of ship.guns) gun.reload = Math.max(0, gun.reload - BATTLE_TICK);
+    }
+    for (const ship of this.ships) {
+      if (ship.sunk || ship.struck) continue;
       if (ship.grappledWith !== null) continue;
-      this.tryFire(ship);
+      // The player presses fire; AI ships fire themselves.
+      if (ship.id !== this.config.playerShipId) {
+        for (const side of [-1, 1] as const) this.fireSideIfPossible(ship, side);
+      }
       this.checkStrike(ship);
       this.checkSink(ship);
     }
@@ -124,18 +137,23 @@ export class Battle {
     applyShipPhysics(ship, this.config.windDir, this.config.windStrength);
   }
 
-  private tryFire(ship: ShipState): void {
-    ship.reload -= BATTLE_TICK;
-    if (ship.reload > 0) return;
-    const target = this.bestGunTarget(ship);
-    if (!target) {
-      ship.reload = 0.2;
-      return;
+  /** Guns ready (loaded, or within the early-press grace) on a side. */
+  private sideReady(ship: ShipState, side: -1 | 1): boolean {
+    for (const gun of ship.guns) {
+      if (gun.side !== side) continue;
+      if (gun.reload <= 0 || gun.reload <= gun.max * EARLY_FIRE_FRAC) return true;
     }
-    this.fireBroadside(ship, target);
+    return false;
   }
 
-  private bestGunTarget(ship: ShipState): ShipState | null {
+  private fireSideIfPossible(ship: ShipState, side: -1 | 1): void {
+    const target = this.bestGunTarget(ship, side);
+    if (!target) return;
+    if (!this.sideReady(ship, side)) return;
+    this.fireSide(ship, side, target);
+  }
+
+  private bestGunTarget(ship: ShipState, side: -1 | 1): ShipState | null {
     const cls = HULL_CLASSES[ship.hullClass];
     let best: ShipState | null = null;
     let bestScore = Infinity;
@@ -144,8 +162,7 @@ export class Battle {
       if (other.grappledWith !== null) continue;
       const dist = Math.hypot(other.x - ship.x, other.y - ship.y);
       if (dist > cls.gunRange * 1.05) continue;
-      const inArc = this.arcSide(ship, other.x, other.y);
-      if (inArc === null) continue;
+      if (this.arcSide(ship, other.x, other.y) !== side) continue;
       const score = dist - (other.lastSternAim ? 120 : 0);
       if (score < bestScore) {
         bestScore = score;
@@ -167,9 +184,9 @@ export class Battle {
     return null;
   }
 
-  private fireBroadside(ship: ShipState, target: ShipState): void {
+  /** Fire every ready (or early-grace) gun on one side. */
+  private fireSide(ship: ShipState, side: -1 | 1, target: ShipState): void {
     const cls = HULL_CLASSES[ship.hullClass];
-    const side = this.arcSide(ship, target.x, target.y) ?? 1;
     const dist = Math.hypot(target.x - ship.x, target.y - ship.y);
     const bearing = Math.atan2(target.y - ship.y, target.x - ship.x);
     const rel = normalizeAngle(bearing - ship.heading);
@@ -178,14 +195,17 @@ export class Battle {
 
     const hitChanceBase = 0.42 + ((ship.captain.skill - 50) / 100) * 0.6;
     const rangePenalty = 1 - 0.45 * clamp01(dist / cls.gunRange);
-    const skillJitter = 0.9 + this.rng.next() * 0.2;
 
     let hullDamage = 0;
     let sailDamage = 0;
     let crewLoss = 0;
     let hits = 0;
-    const guns = Math.max(1, Math.round(cls.guns * skillJitter * 0.9));
-    for (let g = 0; g < guns; g++) {
+    let fired = 0;
+    for (const gun of ship.guns) {
+      if (gun.side !== side) continue;
+      if (gun.reload > 0 && gun.reload > gun.max * EARLY_FIRE_FRAC) continue;
+      gun.reload = gun.max;
+      fired++;
       const hitChance = hitChanceBase * rangePenalty * (0.85 + this.rng.next() * 0.3);
       if (this.rng.next() >= hitChance) continue;
       hits++;
@@ -196,18 +216,17 @@ export class Battle {
       if (this.rng.chance(0.18)) sailDamage += dmg * 0.5;
       if (this.rng.chance(0.24)) crewLoss += 1;
     }
+    if (fired === 0) return;
 
-    const totalReload = cls.reload * (1.15 - (ship.captain.skill - 50) / 300);
-    ship.reload = Math.max(0.6, totalReload);
     ship.lastSternAim = raked;
 
     this.pushEvent({
       kind: 'broadside',
       actor: ship.id,
       target: target.id,
-      detail: side === 1 ? 'starboard' : 'port',
+      detail: `${side === 1 ? 'starboard' : 'port'}:${fired}`,
       tick: this.tick,
-      severity: 'info',
+      severity: fired >= 8 ? 'notable' : 'info',
     });
 
     if (hits === 0) return;
@@ -258,6 +277,34 @@ export class Battle {
 
     const moraleHit = (hullDamage / cls.maxHull) * 12 + (raked ? 8 : 0) + crewLoss * 3;
     target.morale -= moraleHit;
+  }
+
+  /** Player API: pull the trigger — every qualified side fires. */
+  fireRequest(shipId: string): void {
+    const ship = this.ships.find((s) => s.id === shipId);
+    if (!ship || ship.sunk || ship.struck || ship.grappledWith !== null) return;
+    if (this.phase !== 'ongoing') return;
+    for (const side of [-1, 1] as const) this.fireSideIfPossible(ship, side);
+  }
+
+  /** Player API: per-side gun readiness + target presence for the fire UI. */
+  shipReadiness(shipId: string): ShipReadiness | null {
+    const ship = this.ships.find((s) => s.id === shipId);
+    if (!ship || ship.sunk || ship.struck) return null;
+    const read = (side: -1 | 1) => {
+      let loaded = 0;
+      let total = 0;
+      for (const gun of ship.guns) {
+        if (gun.side !== side) continue;
+        total++;
+        if (gun.reload <= 0 || gun.reload <= gun.max * EARLY_FIRE_FRAC) loaded++;
+      }
+      return {
+        loadedFrac: total > 0 ? loaded / total : 0,
+        hasTarget: this.bestGunTarget(ship, side) !== null,
+      };
+    };
+    return { port: read(-1), starboard: read(1) };
   }
 
   private applyGrappleConstraints(): void {
@@ -563,7 +610,7 @@ function createShip(
     maxMorale: cls.maxMorale,
     onFire: false,
     fireT: 0,
-    reload: 1,
+    guns: [],
     intention: 'HOLD',
     targetId: null,
     grappledWith: null,
@@ -575,6 +622,19 @@ function createShip(
     aiT: 0,
     aimHeading: heading,
   };
+}
+
+/** Per-side cannons, each with its own reload rate (±15%, seeded) — loaded at start. */
+function initGuns(rng: SeededRng, hullClass: HullClassId): GunState[] {
+  const cls = HULL_CLASSES[hullClass];
+  const guns: GunState[] = [];
+  for (const side of [-1, 1] as const) {
+    for (let g = 0; g < cls.guns; g++) {
+      const max = cls.reload * (0.85 + 0.3 * rng.next());
+      guns.push({ side, reload: 0, max });
+    }
+  }
+  return guns;
 }
 
 export function rollCaptain(rng: SeededRng): Captain {

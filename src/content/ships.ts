@@ -45,7 +45,7 @@ export const HULL_CLASSES: Record<HullClassId, HullClass> = {
     guns: 8,
     gunRange: 460,
     gunDamage: 13,
-    reload: 2.2,
+    reload: 2.7,
     boardingBonus: 0.08,
   },
   brig: {
@@ -62,7 +62,7 @@ export const HULL_CLASSES: Record<HullClassId, HullClass> = {
     guns: 14,
     gunRange: 520,
     gunDamage: 16,
-    reload: 2.5,
+    reload: 3.1,
     boardingBonus: 0,
   },
   frigate: {
@@ -79,7 +79,7 @@ export const HULL_CLASSES: Record<HullClassId, HullClass> = {
     guns: 24,
     gunRange: 580,
     gunDamage: 20,
-    reload: 3.0,
+    reload: 3.7,
     boardingBonus: -0.05,
   },
   galleon: {
@@ -96,7 +96,7 @@ export const HULL_CLASSES: Record<HullClassId, HullClass> = {
     guns: 32,
     gunRange: 640,
     gunDamage: 24,
-    reload: 3.6,
+    reload: 4.4,
     boardingBonus: 0.04,
   },
 };
