@@ -3,6 +3,7 @@ import './shell/ui/chrome.css';
 import { applyCssTokens } from './shell/ui/theme';
 import { mountShell, resizeStageCanvas } from './shell/viewport';
 import { Input } from './shell/input';
+import { Synth } from './shell/audio';
 import { GameLoop } from './shell/boot';
 import { SceneManager } from './shell/scenes';
 import { createGameSaveManager } from './game/state';
@@ -22,6 +23,8 @@ function main(): void {
     const r = shell.stage.getBoundingClientRect();
     return { x: cx - r.left, y: cy - r.top };
   });
+
+  const synth = new Synth();
 
   const save = createGameSaveManager();
   const loaded = save.load();
@@ -48,7 +51,7 @@ function main(): void {
     if (e.code === 'Escape') scenes.handleBack();
   });
 
-  scenes.replace(new TitleScene({ chrome: shell.chrome, scenes, save }));
+  scenes.replace(new TitleScene({ chrome: shell.chrome, scenes, save, input, synth }));
   loop.start();
 }
 

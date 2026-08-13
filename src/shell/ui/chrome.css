@@ -338,3 +338,214 @@ button.danger {
   color: var(--parchment);
   background: rgba(255, 255, 255, 0.05);
 }
+
+/* ── Skirmish setup ──────────────────────────────────────── */
+
+.skirmish-panel {
+  width: min(460px, 90vw);
+}
+
+.skirmish-panel .stack {
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+.skirmish-note {
+  font-size: var(--type-meta) !important;
+  line-height: 1.6;
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--space-sm);
+}
+
+/* ── Battle HUD ──────────────────────────────────────────── */
+
+.battle-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.battle-hud > * {
+  pointer-events: auto;
+}
+
+.battle-caption {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 8px 18px;
+  font-family: var(--font-display);
+  font-size: var(--type-label);
+  letter-spacing: 0.03em;
+  color: var(--gold);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  max-width: 70vw;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-ferocity {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  right: 12px;
+  font-size: var(--type-meta);
+  color: var(--muted);
+}
+
+.hud-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px calc(var(--safe-left) + 10px) calc(var(--safe-bottom) + 10px)
+    calc(var(--safe-right) + 10px);
+  background: linear-gradient(0deg, rgba(4, 8, 10, 0.85) 0%, rgba(4, 8, 10, 0) 100%);
+  pointer-events: none;
+}
+
+.hud-group {
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.hud-btn {
+  background: var(--rail);
+  border: 1px solid var(--rail-border);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: var(--type-meta);
+  padding: 8px 12px;
+  min-height: 0;
+}
+
+.hud-btn.is-active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #1a1206;
+  font-weight: 700;
+}
+
+.hud-btn:hover {
+  background: var(--button-hot);
+  border-color: var(--gold);
+}
+
+.hud-key {
+  font-size: 0.78em;
+  opacity: 0.6;
+  margin-left: 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+/* ── Inspect card ────────────────────────────────────────── */
+
+.inspect-card {
+  position: absolute;
+  right: calc(var(--safe-right) + 12px);
+  top: calc(var(--safe-top) + 64px);
+  width: 230px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-sm);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.ib-title {
+  font-family: var(--font-display);
+  font-size: var(--type-label);
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.ib-class {
+  color: var(--gold);
+  font-size: 0.8em;
+  margin-left: 6px;
+}
+
+.ib-status {
+  font-size: var(--type-meta);
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.ib-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 2px 0;
+}
+
+.ib-bar {
+  width: 96px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-block;
+}
+
+.ib-bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+.ib-cap {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--ink-dim);
+  border-top: 1px solid var(--hairline);
+  padding-top: 4px;
+}
+
+/* ── Result banner ───────────────────────────────────────── */
+
+.result-banner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 8, 10, 0.55);
+}
+
+.result-banner > div {
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  min-width: min(320px, 84vw);
+}
+
+.result-title {
+  font-family: var(--font-display);
+  font-size: var(--type-banner);
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  color: var(--foe);
+  margin-bottom: var(--space-sm);
+}
+
+.result-title.is-win {
+  color: var(--ally);
+}
+
+.result-lines {
+  color: var(--ink-dim);
+  font-size: var(--type-body);
+  margin-bottom: var(--space-lg);
+}

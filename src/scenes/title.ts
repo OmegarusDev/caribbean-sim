@@ -1,6 +1,8 @@
 /** Title screen — brand, voyage actions, skirmish sandbox, help. */
 import type { Scene } from '../shell/scenes';
 import type { SceneManager } from '../shell/scenes';
+import type { Input } from '../shell/input';
+import type { Synth } from '../shell/audio';
 import type { SaveManager } from '../sim/save';
 import type { GameState } from '../game/state';
 import { createFreshGame } from '../game/state';
@@ -14,6 +16,8 @@ export interface TitleDeps {
   chrome: HTMLElement;
   scenes: SceneManager;
   save: SaveManager<GameState>;
+  input: Input;
+  synth: Synth;
 }
 
 export const GAME_VERSION = 'v0.0.1';
@@ -89,7 +93,8 @@ export class TitleScene implements Scene {
       }),
       btn('Skirmish', {
         className: 'ghost',
-        onClick: () => scenes.push(new SkirmishScene({ chrome, scenes })),
+        onClick: () =>
+          scenes.push(new SkirmishScene({ chrome, scenes, input: this.deps.input, synth: this.deps.synth })),
       }),
     );
 
