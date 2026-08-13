@@ -7,7 +7,7 @@ import { HULL_CLASSES } from '../content/ships';
 import type { HullClassId } from '../content/ships';
 import type { GlHandle } from './gl/context';
 import { createMesh, type GlMesh, type MeshData } from './gl/mesh';
-import { mat4Identity, type Mat4 } from './gl/math';
+import { mat4Identity, mat4Multiply, type Mat4 } from './gl/math';
 
 const WOOD_LIGHT: [number, number, number] = [0.47, 0.31, 0.17];
 const WOOD_DARK: [number, number, number] = [0.16, 0.105, 0.07];
@@ -318,41 +318,54 @@ export interface ShipPose {
   scale?: number;
 }
 
-/** Model matrix for a ship pose (yaw about Y, pitch about Z, roll about X). */
-export function shipModel(out: Mat4, pose: ShipPose): Mat4 {
+const SCRATCH_A = mat4Identity();
+const SCRATCH_B = mat4Identity();
+
+function rotX(out: Mat4, a: number): Mat4 {
   mat4Identity(out);
-  const cy = Math.cos(pose.yaw);
-  const sy = Math.sin(pose.yaw);
-  const cp = Math.cos(pose.pitch);
-  const sp = Math.sin(pose.pitch);
-  const cr = Math.cos(pose.roll);
-  const sr = Math.sin(pose.roll);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  out[5] = c;
+  out[6] = s;
+  out[9] = -s;
+  out[10] = c;
+  return out;
+}
+
+function rotY(out: Mat4, a: number): Mat4 {
+  mat4Identity(out);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  out[0] = c;
+  out[2] = -s;
+  out[8] = s;
+  out[10] = c;
+  return out;
+}
+
+function rotZ(out: Mat4, a: number): Mat4 {
+  mat4Identity(out);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  out[0] = c;
+  out[1] = s;
+  out[4] = -s;
+  out[5] = c;
+  return out;
+}
+
+/**
+ * Model matrix for a ship pose: roll (about bow axis) → pitch (about beam
+ * axis) → yaw (about world up). Verified: yaw keeps the hull upright.
+ */
+export function shipModel(out: Mat4, pose: ShipPose): Mat4 {
   const s = pose.scale ?? 1;
-
-  const rot = new Float32Array(16);
-  rot[0] = cp * cy * s;
-  rot[1] = (sp * cy * cr + sy * sr) * s;
-  rot[2] = (sp * cy * sr - sy * cr) * s;
-  rot[4] = -cp * sy * s;
-  rot[5] = (-sp * sy * cr + cy * sr) * s;
-  rot[6] = (-sp * sy * sr - cy * cr) * s;
-  rot[8] = sp * s;
-  rot[9] = -cp * cr * s;
-  rot[10] = -cp * sr * s;
-  rot[15] = 1;
-
-  out[0] = rot[0];
-  out[1] = rot[1];
-  out[2] = rot[2];
-  out[3] = 0;
-  out[4] = rot[4];
-  out[5] = rot[5];
-  out[6] = rot[6];
-  out[7] = 0;
-  out[8] = rot[8];
-  out[9] = rot[9];
-  out[10] = rot[10];
-  out[11] = 0;
+  rotX(SCRATCH_A, pose.roll);
+  rotZ(SCRATCH_B, pose.pitch);
+  mat4Multiply(SCRATCH_A, SCRATCH_B, SCRATCH_A);
+  rotY(SCRATCH_B, pose.yaw);
+  mat4Multiply(out, SCRATCH_B, SCRATCH_A);
+  for (let i = 0; i < 12; i++) out[i] *= s;
   out[12] = pose.x;
   out[13] = pose.y;
   out[14] = pose.z;
