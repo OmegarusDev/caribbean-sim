@@ -22,7 +22,7 @@ import {
 } from './entities';
 import type { Atmosphere } from './atmosphere';
 import { DAY } from './atmosphere';
-import { getProceduralTexture, hashNoise } from '../core/texture';
+import { getProceduralTexture, hashNoise, clearTextureCache } from '../core/texture';
 
 interface MeshBatch {
   mesh: GlMesh;
@@ -170,6 +170,7 @@ export class WorldScene {
 
   /** Recreate every GPU resource (context loss / restore). */
   rebuild(): void {
+    clearTextureCache();
     this.meshes.clear();
     this.sky = new Sky(this.gl);
     this.water = new Water(this.gl);
@@ -177,10 +178,12 @@ export class WorldScene {
     this.onRebuild?.();
   }
 
+  /**
+   * Dispose only the scene's own resources. Registered meshes are owned by
+   * the game layer (ship meshes live in a shared module cache and must
+   * survive scene teardown and the next battle).
+   */
   dispose(): void {
-    for (const batch of this.meshes.values()) {
-      batch.mesh.dispose(this.gl.gl);
-    }
     this.meshes.clear();
     this.sky.dispose();
     this.water.dispose();
