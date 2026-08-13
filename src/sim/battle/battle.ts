@@ -146,11 +146,11 @@ export class Battle {
     return false;
   }
 
-  private fireSideIfPossible(ship: ShipState, side: -1 | 1): void {
+  private fireSideIfPossible(ship: ShipState, side: -1 | 1): boolean {
     const target = this.bestGunTarget(ship, side);
-    if (!target) return;
-    if (!this.sideReady(ship, side)) return;
-    this.fireSide(ship, side, target);
+    if (!target) return false;
+    if (!this.sideReady(ship, side)) return false;
+    return this.fireSide(ship, side, target);
   }
 
   private bestGunTarget(ship: ShipState, side: -1 | 1): ShipState | null {
@@ -184,8 +184,8 @@ export class Battle {
     return null;
   }
 
-  /** Fire every ready (or early-grace) gun on one side. */
-  private fireSide(ship: ShipState, side: -1 | 1, target: ShipState): void {
+  /** Fire every ready (or early-grace) gun on one side. True if anything fired. */
+  private fireSide(ship: ShipState, side: -1 | 1, target: ShipState): boolean {
     const cls = HULL_CLASSES[ship.hullClass];
     const dist = Math.hypot(target.x - ship.x, target.y - ship.y);
     const bearing = Math.atan2(target.y - ship.y, target.x - ship.x);
@@ -204,6 +204,9 @@ export class Battle {
     for (const gun of ship.guns) {
       if (gun.side !== side) continue;
       if (gun.reload > 0 && gun.reload > gun.max * EARLY_FIRE_FRAC) continue;
+      // Each reload cycle rolls a fresh rate within the band — the same gun
+      // loads faster or slower shot-to-shot (still deterministic per seed).
+      gun.max = cls.reload * (0.85 + 0.3 * this.rng.next());
       gun.reload = gun.max;
       fired++;
       const hitChance = hitChanceBase * rangePenalty * (0.85 + this.rng.next() * 0.3);
@@ -216,7 +219,7 @@ export class Battle {
       if (this.rng.chance(0.18)) sailDamage += dmg * 0.5;
       if (this.rng.chance(0.24)) crewLoss += 1;
     }
-    if (fired === 0) return;
+    if (fired === 0) return false;
 
     ship.lastSternAim = raked;
 
@@ -229,7 +232,7 @@ export class Battle {
       severity: fired >= 8 ? 'notable' : 'info',
     });
 
-    if (hits === 0) return;
+    if (hits === 0) return true;
 
     target.hull = Math.max(0, target.hull - hullDamage);
     if (sailDamage > 0) target.sails = Math.max(0, target.sails - sailDamage);
@@ -277,14 +280,19 @@ export class Battle {
 
     const moraleHit = (hullDamage / cls.maxHull) * 12 + (raked ? 8 : 0) + crewLoss * 3;
     target.morale -= moraleHit;
+    return true;
   }
 
-  /** Player API: pull the trigger — every qualified side fires. */
-  fireRequest(shipId: string): void {
+  /** Player API: pull the trigger — every qualified side fires. True if any fired. */
+  fireRequest(shipId: string): boolean {
     const ship = this.ships.find((s) => s.id === shipId);
-    if (!ship || ship.sunk || ship.struck || ship.grappledWith !== null) return;
-    if (this.phase !== 'ongoing') return;
-    for (const side of [-1, 1] as const) this.fireSideIfPossible(ship, side);
+    if (!ship || ship.sunk || ship.struck || ship.grappledWith !== null) return false;
+    if (this.phase !== 'ongoing') return false;
+    let fired = false;
+    for (const side of [-1, 1] as const) {
+      if (this.fireSideIfPossible(ship, side)) fired = true;
+    }
+    return fired;
   }
 
   /** Player API: per-side gun readiness + target presence for the fire UI. */

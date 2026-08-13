@@ -285,7 +285,8 @@ export class BattleScene implements Scene {
     if (this.paused || this.finished) return;
     const player = this.playerShip();
     if (!player || player.sunk || player.struck) return;
-    this.battle.fireRequest(player.id);
+    const fired = this.battle.fireRequest(player.id);
+    if (fired) this.fireCtl?.flashFired();
   }
 
   private updateFireControl(): void {

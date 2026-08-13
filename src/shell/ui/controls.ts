@@ -1,5 +1,5 @@
 /**
- * Helm controls — the ship's wheel and the sail slider.
+ * Helm controls — the ship's wheel, the sail slider, and the fire button.
  *
  * The wheel is a full 8-spoke wheel drawn in SVG and clipped to its top arc,
  * so dragging (or scrolling) spins the spokes exactly like a real helm viewed
@@ -150,9 +150,11 @@ function clamp(v: number, min: number, max: number): number {
 
 /**
  * FireControl — the broadside trigger with a per-side readiness gauge.
- * Port readiness fills the left arc, starboard the right; a side is "ready"
- * when its guns are loaded AND an enemy sits in that arc. Pressing fires
- * every qualified side; guns within the early-press grace still go off.
+ * Port readiness fills the left arc, starboard the right. A side is "ready"
+ * when its guns are loaded AND an enemy sits in that arc; the button then
+ * pulses red to invite the press. Pressing fires every qualified side —
+ * the click always plays, but the red flash only lands when shots went off.
+ * (Guns within the early-press grace still fire on a slightly-early press.)
  */
 
 export interface FireReadiness {
@@ -164,7 +166,6 @@ export class FireControl {
   readonly el: HTMLElement;
   private portFill: SVGPathElement | null = null;
   private starFill: SVGPathElement | null = null;
-  private statusEl: HTMLElement | null = null;
   private readonly onFire: () => void;
 
   constructor(onFire: () => void) {
@@ -177,24 +178,18 @@ export class FireControl {
         <path class="fire-gauge" data-side="star" d="${arcPath(110, 60, 50, -25, 25)}"/>
         <circle class="fire-btn" cx="110" cy="60" r="42"/>
         <text x="110" y="67" class="fire-label" text-anchor="middle">FIRE</text>
-      </svg>
-      <div class="fire-status">LOADING</div>`;
+      </svg>`;
     this.portFill = this.el.querySelector('[data-side="port"]');
     this.starFill = this.el.querySelector('[data-side="star"]');
-    this.statusEl = this.el.querySelector('.fire-status');
     this.el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      this.press();
+      this.onFire();
     });
-  }
-
-  private press(): void {
-    this.onFire();
   }
 
   /** Fraction of the gauge arc to show (0..1). */
   private static arcLen(spanDeg: number): number {
-    return (spanDeg * Math.PI) / 180 * 50;
+    return ((spanDeg * Math.PI) / 180) * 50;
   }
 
   update(port: FireReadiness, star: FireReadiness): void {
@@ -208,20 +203,18 @@ export class FireControl {
     };
     set(this.portFill, port, 50);
     set(this.starFill, star, 50);
-    const anyReady = (port.loadedFrac >= 0.99 && port.hasTarget) || (star.loadedFrac >= 0.99 && star.hasTarget);
-    const anyArmed = (port.loadedFrac > 0 && port.hasTarget) || (star.loadedFrac > 0 && star.hasTarget);
+    const anyReady =
+      (port.loadedFrac >= 0.99 && port.hasTarget) ||
+      (star.loadedFrac >= 0.99 && star.hasTarget);
     this.el.classList.toggle('is-ready', anyReady);
-    this.el.classList.toggle('is-armed', anyArmed);
-    if (this.statusEl) {
-      const text = anyReady
-        ? 'BROADSIDE READY'
-        : anyArmed
-          ? 'LOADING'
-          : port.hasTarget || star.hasTarget
-            ? 'NO TARGET IN ARC'
-            : 'NO ENEMY SIGHTED';
-      if (this.statusEl.textContent !== text) this.statusEl.textContent = text;
-    }
+  }
+
+  /** One-shot red flash — call only when a press actually fired guns. */
+  flashFired(): void {
+    this.el.classList.remove('is-flash');
+    void this.el.offsetWidth; // restart the animation
+    this.el.classList.add('is-flash');
+    window.setTimeout(() => this.el.classList.remove('is-flash'), 380);
   }
 }
 

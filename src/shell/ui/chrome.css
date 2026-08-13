@@ -750,7 +750,7 @@ button.danger {
 
 .fire-gauge.is-ready {
   opacity: 1;
-  stroke: var(--ally);
+  stroke: var(--danger);
 }
 
 .fire-gauge.is-dark {
@@ -764,9 +764,18 @@ button.danger {
   transition: fill 160ms ease, stroke 160ms ease;
 }
 
+.fire-ctl:active svg {
+  transform: scale(0.94);
+}
+
+.fire-ctl svg {
+  transition: transform 70ms ease;
+}
+
 .fire-ctl.is-ready .fire-btn {
-  fill: rgba(111, 176, 122, 0.28);
-  stroke: var(--ally);
+  fill: rgba(192, 68, 68, 0.32);
+  stroke: var(--danger);
+  animation: fire-pulse 1.1s ease-in-out infinite;
 }
 
 .fire-label {
@@ -778,18 +787,23 @@ button.danger {
 }
 
 .fire-ctl.is-ready .fire-label {
-  fill: var(--ally);
+  fill: var(--danger);
 }
 
-.fire-status {
-  margin-top: 4px;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--muted);
+.fire-ctl.is-flash .fire-btn {
+  fill: rgba(255, 84, 60, 0.55);
+  stroke: #ff6a55;
+  animation: none;
 }
 
-.fire-ctl.is-ready .fire-status {
-  color: var(--ally);
+@keyframes fire-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgba(220, 60, 50, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(255, 92, 60, 0.95));
+  }
 }
 
 .hud-bar {

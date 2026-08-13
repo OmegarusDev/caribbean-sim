@@ -32,6 +32,40 @@ describe('per-gun cannons', () => {
     expect(afterPort).toBe(before); // port side untouched — no enemy there
   });
 
+  it('re-rolls each gun reload rate every cycle (not fixed per battle)', () => {
+    const battle = new Battle(makeCaptainConfig('sloop', 'sloop', 21));
+    const player = battle.ships[0]!;
+    const enemy = battle.ships[1]!;
+    player.x = 0;
+    player.y = 0;
+    player.heading = 0;
+    enemy.x = 400;
+    enemy.y = 220;
+    const first = player.guns.find((g) => g.side === 1)!;
+    const oldMax = first.max;
+    const fired = battle.fireRequest(player.id);
+    expect(fired).toBe(true);
+    expect(first.max).toBeGreaterThan(0);
+    expect(first.reload).toBe(first.max);
+    const rerolled = player.guns.some((g) => g.side === 1 && g.max !== oldMax);
+    expect(rerolled).toBe(true);
+  });
+
+  it('fireRequest reports whether anything fired', () => {
+    const battle = new Battle(makeCaptainConfig('sloop', 'sloop', 31));
+    const player = battle.ships[0]!;
+    const enemy = battle.ships[1]!;
+    player.x = 0;
+    player.y = 0;
+    player.heading = 0;
+    enemy.x = 500;
+    enemy.y = 0; // dead ahead — nothing in arc
+    expect(battle.fireRequest(player.id)).toBe(false);
+    enemy.x = 400;
+    enemy.y = 220; // broadside arc
+    expect(battle.fireRequest(player.id)).toBe(true);
+  });
+
   it('early press: guns within the grace window still go off, half-loaded ones do not', () => {
     const battle = new Battle(makeCaptainConfig('sloop', 'sloop', 7));
     const player = battle.ships[0]!;
