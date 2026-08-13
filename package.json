@@ -1,0 +1,20 @@
+{
+  "name": "caribbean-sim",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Persistent-world pirate sim — the ultralight engine's flagship game",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.8"
+  }
+}
