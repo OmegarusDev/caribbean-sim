@@ -616,6 +616,104 @@ button.danger {
   white-space: nowrap;
 }
 
+/* ── Helm controls (Captain mode) ────────────────────────── */
+
+.wheel-ctl {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, 48vw);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45));
+}
+
+.wheel-ctl:active {
+  cursor: grabbing;
+}
+
+.wheel-ctl svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.wheel-spin {
+  transform-origin: 120px 115px;
+}
+
+.wheel-rim {
+  stroke: var(--gold);
+  stroke-width: 5;
+  fill: none;
+  opacity: 0.9;
+}
+
+.wheel-hub {
+  fill: var(--wood);
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+.wheel-spoke {
+  stroke: var(--wood-light);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.wheel-peg {
+  fill: var(--wood-light);
+  stroke: var(--gold);
+  stroke-width: 1.5;
+}
+
+.wheel-pointer {
+  fill: var(--accent-hot);
+}
+
+.sail-ctl {
+  position: absolute;
+  right: calc(var(--safe-right) + 14px);
+  top: 50%;
+  transform: translateY(-50%);
+  height: min(220px, 42vh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  touch-action: none;
+  user-select: none;
+}
+
+.sail-track {
+  flex: 1;
+  width: 24px;
+  border-radius: 12px;
+  background: var(--rail);
+  border: 1px solid var(--rail-border);
+  position: relative;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.sail-thumb {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 28px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--gold-hot), var(--gold));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: top 80ms ease;
+}
+
+.sail-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+}
+
 .hud-bar {
   position: absolute;
   left: 0;

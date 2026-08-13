@@ -84,6 +84,10 @@ export class Battle {
 
     for (const ship of this.ships) {
       if (ship.sunk || ship.struck) continue;
+      if (ship.id === this.config.playerShipId) {
+        ship.intention = 'MANUAL';
+        continue;
+      }
       ship.aiT -= BATTLE_TICK;
       if (ship.aiT <= 0) {
         updateCaptain(ship, this.ships, this.rng, this.config.windDir);

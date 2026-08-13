@@ -1,6 +1,6 @@
 /**
- * Skirmish sandbox — ship select for 1v1 duels (live preview on the sea),
- * plus the fleet-action presets. R restarts a battle's seed, N rerolls it.
+ * Skirmish sandbox — two modes: Auto (both sides AI, fleet presets) and
+ * Captain (you helm one ship with the wheel + sails). R restarts, N rerolls.
  */
 import type { Scene } from '../shell/scenes';
 import type { SceneManager } from '../shell/scenes';
@@ -16,7 +16,7 @@ import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
 import type { HullClassId } from '../content/ships';
 import { SKIRMISH_PRESETS } from '../content/skirmish';
 import type { SkirmishPreset } from '../content/skirmish';
-import { makeDuelConfig, makeSkirmishConfig } from '../content/skirmish';
+import { makeCaptainConfig, makeSkirmishConfig } from '../content/skirmish';
 import { BattleScene, type BattleLaunch } from './battle';
 
 export interface SkirmishDeps {
@@ -27,18 +27,19 @@ export interface SkirmishDeps {
   gl: GlContext | null;
 }
 
-type SelectMode = 'duel' | 'fleet';
+type SelectMode = 'auto' | 'captain';
 type Side = 'player' | 'enemy';
 
 export class SkirmishScene implements Scene {
+  private mode: SelectMode = 'captain';
   private playerClass: HullClassId = 'sloop';
   private enemyClass: HullClassId = 'sloop';
   private time = 0;
   private scene: WorldScene | null = null;
   private previewBuilt = false;
   private root: HTMLElement | null = null;
-  private duelView: HTMLElement | null = null;
-  private fleetView: HTMLElement | null = null;
+  private captainView: HTMLElement | null = null;
+  private autoView: HTMLElement | null = null;
   private playerStats: HTMLElement | null = null;
   private enemyStats: HTMLElement | null = null;
 
@@ -87,7 +88,7 @@ export class SkirmishScene implements Scene {
       this.registerShips(this.scene);
     }
     if (!this.previewBuilt) {
-      this.scene.setEntities(this.previewEntities());
+      this.scene.setEntities(this.mode === 'captain' ? this.previewEntities() : []);
       this.previewBuilt = true;
     }
     this.scene.camera.resize(w, h);
@@ -139,44 +140,45 @@ export class SkirmishScene implements Scene {
     const head = el('div', { className: 'skirmish-head' });
     head.append(el('h2', { text: 'Skirmish Sandbox' }));
     head.append(
-      segment(['Duel', 'Fleet Action'], 0, (i) => this.setMode(i === 0 ? 'duel' : 'fleet')),
+      segment(['Auto Battle', 'Captain'], 1, (i) => this.setMode(i === 0 ? 'auto' : 'captain')),
     );
     this.root.append(head);
 
-    this.duelView = el('div', { className: 'duel-view' });
+    this.captainView = el('div', { className: 'duel-view' });
     const grid = el('div', { className: 'select-grid' });
 
     const player = this.buildSide('player', 'Your Ship');
     const enemy = this.buildSide('enemy', 'Enemy Ship');
     grid.append(player.panel, el('div', { className: 'vs-mark', text: 'VS' }), enemy.panel);
-    this.duelView.append(grid);
+    this.captainView.append(grid);
 
-    this.duelView.append(
-      btn('Set Sail', {
+    this.captainView.append(
+      btn('Take the Helm', {
         className: 'cta sail-btn',
-        onClick: () => this.launchDuel(),
+        onClick: () => this.launchCaptain(),
       }),
     );
-    this.root.append(this.duelView);
+    this.root.append(this.captainView);
 
-    this.fleetView = el('div', { className: 'fleet-view is-hidden' });
+    this.autoView = el('div', { className: 'fleet-view is-hidden' });
     const stack = el('div', { className: 'stack' });
     for (const preset of SKIRMISH_PRESETS) {
       stack.append(
         btn(preset.label, {
           className: 'ghost',
           title: preset.blurb,
-          onClick: () => this.launchFleet(preset),
+          onClick: () => this.launchAuto(preset),
         }),
       );
     }
-    this.fleetView.append(stack);
-    this.root.append(this.fleetView);
+    this.autoView.append(stack);
+    this.root.append(this.autoView);
 
     this.root.append(
       el('p', {
         className: 'skirmish-note',
-        text: 'In battle: 1/2/4 speed · P pause · R restart · N reroll · D arcs · click a ship to inspect',
+        text:
+          'Captain: drag the wheel or scroll to steer · the sail slider sets canvas · arrows/WASD work too · guns fire themselves',
       }),
     );
     this.root.append(
@@ -224,8 +226,10 @@ export class SkirmishScene implements Scene {
   }
 
   private setMode(mode: SelectMode): void {
-    this.duelView?.classList.toggle('is-hidden', mode !== 'duel');
-    this.fleetView?.classList.toggle('is-hidden', mode !== 'fleet');
+    this.mode = mode;
+    this.captainView?.classList.toggle('is-hidden', mode !== 'captain');
+    this.autoView?.classList.toggle('is-hidden', mode !== 'auto');
+    this.previewBuilt = false;
     this.deps.synth.play('ui');
   }
 
@@ -239,20 +243,22 @@ export class SkirmishScene implements Scene {
     if (stats) stats.innerHTML = statBars(cls, side === 'player' ? '#2e7d8a' : '#c06655');
   }
 
-  private launchDuel(): void {
+  private launchCaptain(): void {
     const player = this.playerClass;
     const enemy = this.enemyClass;
     const launch: BattleLaunch = {
       label: `${HULL_CLASSES[player].name} vs ${HULL_CLASSES[enemy].name}`,
-      makeConfig: (seed) => makeDuelConfig(player, enemy, seed),
+      makeConfig: (seed) => makeCaptainConfig(player, enemy, seed),
+      mode: 'captain',
     };
     this.launch(launch);
   }
 
-  private launchFleet(preset: SkirmishPreset): void {
+  private launchAuto(preset: SkirmishPreset): void {
     const launch: BattleLaunch = {
       label: preset.label,
       makeConfig: (seed) => makeSkirmishConfig(preset, seed),
+      mode: 'auto',
     };
     this.launch(launch);
   }

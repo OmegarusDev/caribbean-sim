@@ -11,7 +11,8 @@ export type ShipIntention =
   | 'EVADE'
   | 'WHEEL'
   | 'HOLD'
-  | 'STRIKE';
+  | 'STRIKE'
+  | 'MANUAL';
 
 export type BattlePhase = 'ongoing' | 'ended';
 
@@ -71,6 +72,8 @@ export interface BattleConfig {
   windDir: number;
   maxTicks: number;
   spacing?: number;
+  /** Ship id exempt from the captain AI — receives rudder/sail from input. */
+  playerShipId?: string;
 }
 
 export interface BattleResult {

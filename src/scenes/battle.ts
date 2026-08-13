@@ -31,6 +31,7 @@ import type { WorldEntity } from '../gfx/world/entities';
 import type { GlContext } from '../gfx/core/context';
 import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
 import { el } from '../shell/ui/dom';
+import { SailControl, WheelControl } from '../shell/ui/controls';
 
 export interface BattleDeps {
   chrome: HTMLElement;
@@ -43,6 +44,7 @@ export interface BattleDeps {
 export interface BattleLaunch {
   label: string;
   makeConfig: (seed: number) => BattleConfig;
+  mode?: 'auto' | 'captain';
 }
 
 type HudAction =
@@ -60,6 +62,9 @@ export class BattleScene implements Scene {
   private readonly battle: Battle;
   private readonly launch: BattleLaunch;
   private readonly seed: number;
+  private readonly mode: 'auto' | 'captain';
+  private wheel: WheelControl | null = null;
+  private sail: SailControl | null = null;
   private speed = 1;
   private paused = false;
   private finished = false;
@@ -94,6 +99,7 @@ export class BattleScene implements Scene {
   ) {
     this.launch = launch;
     this.seed = seed;
+    this.mode = launch.mode ?? 'auto';
     this.battle = new Battle(launch.makeConfig(seed));
     const fxRng = new SeededRng(seed).split(0xfeed);
     this.fx = new FxSystem(() => fxRng.next());
@@ -108,6 +114,14 @@ export class BattleScene implements Scene {
   enter(): void {
     this.deps.synth.ensure();
     this.buildHud();
+    if (this.mode === 'captain') {
+      const player = this.playerShip();
+      this.caption = player
+        ? `You sail the ${player.name} — helm to your wheel, sails to your slider`
+        : 'You sail — helm to your wheel, sails to your slider';
+      this.captionLife = 4.5;
+      this.hudDirty = true;
+    }
   }
 
   exit(): void {
@@ -138,6 +152,7 @@ export class BattleScene implements Scene {
     if (hud.type !== 'NONE') this.applyAction(hud);
 
     if (!this.paused && !this.finished) {
+      if (this.mode === 'captain') this.applyPlayerInput();
       this.simAcc += dt * this.speed;
       let steps = 0;
       while (this.simAcc >= BATTLE_TICK && steps < 400) {
@@ -196,7 +211,7 @@ export class BattleScene implements Scene {
     const scene = this.scene;
     scene.camera.resize(w, h);
     scene.controller.update(
-      this.battle.ships.filter((s) => !s.sunk).map((s) => ({ x: s.x, y: s.y })),
+      this.cameraPoints(),
       this.lastDt,
       this.deps.input,
       this.selectedPoint(),
@@ -215,6 +230,10 @@ export class BattleScene implements Scene {
     }
     const sel = this.selectedId ? this.battle.ships.find((s) => s.id === this.selectedId) : null;
     if (sel && !sel.sunk) entities.push(ringEntity(sel));
+    if (this.mode === 'captain') {
+      const player = this.playerShip();
+      if (player && !player.sunk) entities.push(ringEntity(player));
+    }
     scene.setEntities(entities);
     scene.setParticles(this.fx.pool);
     scene.render(this.time);
@@ -227,6 +246,37 @@ export class BattleScene implements Scene {
       scene.registerMesh(`ship:${cls}`, getShipMesh(gl, cls).mesh, getShipProgram(gl));
     }
     scene.registerMesh('ring', getRingMesh(gl), getRingProgram(gl), true);
+  }
+
+  private playerShip() {
+    return this.battle.ships.find((x) => x.id === this.battle.config.playerShipId) ?? null;
+  }
+
+  private cameraPoints(): Array<{ x: number; y: number }> {
+    const alive = this.battle.ships.filter((s) => !s.sunk);
+    if (this.mode !== 'captain') return alive.map((s) => ({ x: s.x, y: s.y }));
+    const player = this.playerShip();
+    if (!player || player.sunk) return alive.map((s) => ({ x: s.x, y: s.y }));
+    let nearest: ShipState | null = null;
+    let best = Infinity;
+    for (const s of alive) {
+      if (s.id === player.id) continue;
+      const d = Math.hypot(s.x - player.x, s.y - player.y);
+      if (d < best) {
+        best = d;
+        nearest = s;
+      }
+    }
+    const pts = [{ x: player.x, y: player.y }];
+    if (nearest) pts.push({ x: nearest.x, y: nearest.y });
+    return pts;
+  }
+
+  private applyPlayerInput(): void {
+    const player = this.playerShip();
+    if (!player || player.sunk || player.struck) return;
+    if (this.wheel) player.rudder = this.wheel.value;
+    if (this.sail) player.sailState = this.sail.value;
   }
 
   private lastDt = 1 / 60;
@@ -249,6 +299,24 @@ export class BattleScene implements Scene {
     if (input.wasKeyPressed('KeyD')) return { type: 'DEBUG' };
     if (input.wasKeyPressed('KeyR')) return { type: 'RESTART' };
     if (input.wasKeyPressed('KeyN')) return { type: 'REROLL' };
+    if (this.mode === 'captain') {
+      if (input.wasKeyPressed('ArrowRight') || input.wasKeyPressed('KeyD')) {
+        this.wheel?.setValue(this.wheel.value + 0.2);
+        return { type: 'NONE' };
+      }
+      if (input.wasKeyPressed('ArrowLeft') || input.wasKeyPressed('KeyA')) {
+        this.wheel?.setValue(this.wheel.value - 0.2);
+        return { type: 'NONE' };
+      }
+      if (input.wasKeyPressed('ArrowUp') || input.wasKeyPressed('KeyW')) {
+        this.sail?.setValue(this.sail.value + 0.12);
+        return { type: 'NONE' };
+      }
+      if (input.wasKeyPressed('ArrowDown') || input.wasKeyPressed('KeyS')) {
+        this.sail?.setValue(this.sail.value - 0.12);
+        return { type: 'NONE' };
+      }
+    }
     return { type: 'NONE' };
   }
 
@@ -425,6 +493,14 @@ export class BattleScene implements Scene {
     if (this.debug) {
       this.debugChip = el('div', { className: 'debug-chip', text: '' });
       this.root.append(this.debugChip);
+    }
+
+    if (this.mode === 'captain') {
+      this.wheel = new WheelControl(() => {});
+      this.sail = new SailControl(() => {});
+      this.wheel.el.classList.add('is-captain');
+      this.sail.el.classList.add('is-captain');
+      this.root.append(this.wheel.el, this.sail.el);
     }
 
     const bar = el('div', { className: 'hud-bar' });

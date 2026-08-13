@@ -59,7 +59,11 @@ export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
     radius: cls.length * 0.8,
     stripe: TEAM_STRIPE[s.team],
     flag: TEAM_FLAG[s.team],
-    sailRatio: s.struck ? 0.15 : Math.max(0.1, s.sails / s.maxSails),
+    // Visual sail size: damage tatters, but reefing (sailState) visibly
+    // hauls the canvas in — the helm's sails slider reads on the model.
+    sailRatio: s.struck
+      ? 0.15
+      : Math.max(0.08, (s.sails / s.maxSails) * (0.3 + 0.7 * s.sailState)),
     windLocal: [Math.cos(opts.windDir - s.heading), Math.sin(opts.windDir - s.heading)],
     phase,
     visible: true,

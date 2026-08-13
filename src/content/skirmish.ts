@@ -72,3 +72,12 @@ export function makeDuelConfig(
     teams: [{ hullClasses: [player] }, { hullClasses: [enemy] }],
   };
 }
+
+/** Captain mode: same duel, but the first team-0 ship is player-controlled. */
+export function makeCaptainConfig(
+  player: HullClassId,
+  enemy: HullClassId,
+  seed: number,
+): BattleConfig {
+  return { ...makeDuelConfig(player, enemy, seed), playerShipId: 't0s0' };
+}
