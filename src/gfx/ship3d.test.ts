@@ -1,6 +1,60 @@
 import { describe, expect, it } from 'vitest';
-import { shipModel, type ShipPose } from './ship3d';
+import { buildShipMeshData, shipModel, type ShipPose } from './ship3d';
 import { mat4Identity, transformMat4, vec3 } from './gl/math';
+
+describe('ship mesh geometry', () => {
+  for (const hullClass of ['sloop', 'brig', 'frigate', 'galleon'] as const) {
+    it(`${hullClass}: valid indices, sane bounds, no NaN`, () => {
+      const d = buildShipMeshData(hullClass);
+      const verts = d.positions.length / 3;
+      expect(verts).toBeGreaterThan(100);
+      expect(d.indices.length).toBeGreaterThan(500);
+      for (const idx of d.indices) {
+        expect(idx).toBeGreaterThanOrEqual(0);
+        expect(idx).toBeLessThan(verts);
+      }
+      let minY = Infinity;
+      let maxY = -Infinity;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      for (let i = 0; i < verts; i++) {
+        const x = d.positions[i * 3]!;
+        const y = d.positions[i * 3 + 1]!;
+        const z = d.positions[i * 3 + 2]!;
+        expect(Number.isFinite(x)).toBe(true);
+        expect(Number.isFinite(y)).toBe(true);
+        expect(Number.isFinite(z)).toBe(true);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+      }
+      expect(minY).toBeLessThan(-10);
+      expect(maxY).toBeGreaterThan(40);
+      expect(minX).toBeLessThan(-40);
+      expect(maxX).toBeGreaterThan(40);
+    });
+
+    it(`${hullClass}: sails sit above the deck, hull is vertical`, () => {
+      const d = buildShipMeshData(hullClass);
+      let sailMinY = Infinity;
+      let sailMaxY = -Infinity;
+      let hullY = Infinity;
+      d.kinds.forEach((k, i) => {
+        const y = d.positions[i * 3 + 1]!;
+        if (k === 1) {
+          sailMinY = Math.min(sailMinY, y);
+          sailMaxY = Math.max(sailMaxY, y);
+        } else if (k === 0) {
+          hullY = Math.min(hullY, y);
+        }
+      });
+      expect(sailMinY).toBeGreaterThan(10);
+      expect(sailMaxY).toBeGreaterThan(sailMinY + 30);
+      expect(hullY).toBeLessThan(0);
+    });
+  }
+});
 
 function pose(yaw: number, pitch = 0, roll = 0): ShipPose {
   return { x: 0, z: 0, y: 0, yaw, pitch, roll, sinkT: 0 };

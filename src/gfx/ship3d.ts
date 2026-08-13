@@ -44,7 +44,8 @@ export function disposeShipMeshes(gl: GlHandle): void {
   cache.clear();
 }
 
-function buildShipMeshData(hullClass: HullClassId): MeshData {
+/** Pure mesh build — exported for geometry tests and diagnostics. */
+export function buildShipMeshData(hullClass: HullClassId): MeshData {
   const cls = HULL_CLASSES[hullClass];
   const L = cls.length;
   const D = L * 0.2;
@@ -144,10 +145,11 @@ function buildShipMeshData(hullClass: HullClassId): MeshData {
     data.indices.push(last + k, tip, last + k + 1);
   }
 
-  // Stern transom.
-  const t0 = data.positions.length / 3 - 10;
-  data.indices.push(t0 + 2, t0 + 3, t0 + 4, t0 + 2, t0 + 4, t0 + 5);
-  data.indices.push(t0 + 5, t0 + 4, t0 + 3, t0 + 5, t0 + 3, t0 + 2);
+  // Stern transom (section 0 at x = -L/2): fan from the keel over the whole
+  // stern profile (keel → bilge → waterline → gunwales → deck).
+  for (let k = 1; k <= 7; k++) {
+    data.indices.push(0, k, k + 1);
+  }
 
   // Deck fill between gunwales.
   const deckSeg = 8;

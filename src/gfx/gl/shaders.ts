@@ -14,23 +14,21 @@ uniform float u_time;
 uniform float u_sailRatio;
 
 out vec3 v_normal;
+out vec3 v_world;
 out vec4 v_color;
 out float v_kind;
 
 void main() {
   vec3 p = aPos;
   if (aKind > 0.5 && aKind < 2.5) {
+    // Sails: billow downwind (u across -1..1, v down 0..1), flutter, sag when torn.
     float u = aBind.x;
     float v = aBind.y;
-    float uu = u * (0.35 + 0.65 * u_sailRatio);
-    float vv = v * (0.3 + 0.7 * u_sailRatio);
-    p.x = aPos.x + uu * (0.28 + 0.72 * u_sailRatio);
-    p.y = aPos.y + vv;
-    p.z = aPos.z;
-    float billow = sin(u * 3.14159) * (1.0 - v * 0.55) * 0.16 * u_sailRatio;
+    float billow = sin(u * 3.14159) * (1.0 - v * 0.5) * 0.18 * u_sailRatio;
     p.x += u_windLocal.x * billow;
     p.z += u_windLocal.y * billow;
     p.x += sin(u * 7.0 + u_time * 5.0) * 0.012 * u_sailRatio;
+    p.y -= (1.0 - u_sailRatio) * v * 3.0;
   } else if (aKind > 2.5) {
     float wave = sin(aPos.x * 6.0 + u_time * 9.0);
     p.y += wave * 0.03;
@@ -38,6 +36,7 @@ void main() {
   }
   vec4 world = u_model * vec4(p, 1.0);
   v_normal = mat3(u_model) * aNormal;
+  v_world = world.xyz;
   v_color = aColor;
   v_kind = aKind;
   gl_Position = u_viewProj * world;
@@ -47,6 +46,7 @@ export const SHIP_FS = `#version 300 es
 precision mediump float;
 
 in vec3 v_normal;
+in vec3 v_world;
 in vec4 v_color;
 in float v_kind;
 
@@ -72,10 +72,10 @@ void main() {
   }
   vec3 n = normalize(v_normal);
   float diff = max(dot(n, u_lightDir), 0.0);
-  vec3 viewDir = normalize(u_eye - v_normal);
+  vec3 viewDir = normalize(u_eye - v_world);
   float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 2.0) * 0.35;
-  vec3 col = albedo * (0.42 + 0.58 * diff) + vec3(1.0, 0.9, 0.75) * rim * 0.3;
-  float fog = smoothstep(u_fogStart, u_fogEnd, length(u_eye - v_normal));
+  vec3 col = albedo * (0.45 + 0.55 * diff) + vec3(1.0, 0.9, 0.75) * rim * 0.25;
+  float fog = smoothstep(u_fogStart, u_fogEnd, length(u_eye - v_world));
   col = mix(col, u_fog, clamp(fog, 0.0, 0.9));
   frag = vec4(col, 1.0);
 }`;

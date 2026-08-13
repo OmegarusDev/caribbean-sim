@@ -59,7 +59,15 @@ export class SkirmishScene implements Scene {
   update(dt: number): void {
     this.time += dt;
     if (this.scene3d) {
-      this.scene3d.camera.update([], dt, this.deps.input, null);
+      this.scene3d.camera.update(
+        [
+          { x: -520, y: 30 },
+          { x: 520, y: -30 },
+        ],
+        dt,
+        this.deps.input,
+        null,
+      );
       this.scene3d.smoothPoses(dt, this.time);
       this.scene3d.setParticles([]);
     }
