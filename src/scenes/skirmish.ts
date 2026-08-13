@@ -10,6 +10,8 @@ import { btn, clear, el, segment } from '../shell/ui/dom';
 import { GfxEngine } from '../gfx/pipeline';
 import { drawOcean } from '../gfx/ocean';
 import { drawShipWorld, makePreviewShip } from '../gfx/ship';
+import { SeaScene, toShipView } from '../gfx/scene3d';
+import type { GlContext } from '../gfx/gl/context';
 import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
 import type { HullClassId } from '../content/ships';
 import { SKIRMISH_PRESETS } from '../content/skirmish';
@@ -22,6 +24,7 @@ export interface SkirmishDeps {
   scenes: SceneManager;
   input: Input;
   synth: Synth;
+  gl: GlContext | null;
 }
 
 type SelectMode = 'duel' | 'fleet';
@@ -32,6 +35,8 @@ export class SkirmishScene implements Scene {
   private enemyClass: HullClassId = 'sloop';
   private time = 0;
   private gfx: GfxEngine | null = null;
+  private scene3d: SeaScene | null = null;
+  private previewBuilt = false;
   private root: HTMLElement | null = null;
   private duelView: HTMLElement | null = null;
   private fleetView: HTMLElement | null = null;
@@ -48,13 +53,37 @@ export class SkirmishScene implements Scene {
     if (this.root) this.root.remove();
     this.root = null;
     this.gfx?.clear();
+    this.previewBuilt = false;
   }
 
   update(dt: number): void {
     this.time += dt;
+    if (this.scene3d) {
+      this.scene3d.camera.update([], dt, this.deps.input, null);
+      this.scene3d.smoothPoses(dt, this.time);
+      this.scene3d.setParticles([]);
+    }
   }
 
-  render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
+    const gl = this.deps.gl;
+    if (gl && !gl.lost) {
+      if (!this.scene3d) {
+        this.scene3d = new SeaScene(gl);
+        this.scene3d.setWind(0.6, 0.8);
+        this.scene3d.camera.smoothDolly = 900;
+        this.scene3d.camera.smoothPitch = 0.48;
+        this.scene3d.camera.smoothYaw = 0;
+      }
+      if (!this.previewBuilt) {
+        this.scene3d.setShips(this.previewViews());
+        this.previewBuilt = true;
+      }
+      this.scene3d.camera.resize(w, h);
+      this.scene3d.render(this.time);
+      return;
+    }
+    if (!ctx) return;
     if (!this.gfx) {
       this.gfx = new GfxEngine(ctx);
       const cam = this.gfx.camera;
@@ -74,6 +103,29 @@ export class SkirmishScene implements Scene {
       });
     }
     this.gfx.frame(w, h);
+  }
+
+  private previewViews() {
+    if (!this.scene3d) return [];
+    const player = makePreviewShip(
+      'p',
+      0,
+      `Your ${HULL_CLASSES[this.playerClass].name}`,
+      this.playerClass,
+      0,
+    );
+    const enemy = makePreviewShip(
+      'e',
+      1,
+      `Enemy ${HULL_CLASSES[this.enemyClass].name}`,
+      this.enemyClass,
+      Math.PI,
+    );
+    player.x = -520;
+    player.y = 30;
+    enemy.x = 520;
+    enemy.y = -30;
+    return [toShipView(player, true), toShipView(enemy, false)];
   }
 
   handleBack(): boolean {
@@ -169,6 +221,7 @@ export class SkirmishScene implements Scene {
     else this.enemyClass = cls;
     this.deps.synth.play('ui');
     this.refreshSide(side);
+    this.previewBuilt = false;
   }
 
   private setMode(mode: SelectMode): void {

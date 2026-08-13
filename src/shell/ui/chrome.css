@@ -540,8 +540,56 @@ button.danger {
   position: absolute;
   top: calc(var(--safe-top) + 8px);
   right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: var(--type-meta);
   color: var(--muted);
+}
+
+.chip-label {
+  letter-spacing: 0.14em;
+  font-size: 10px;
+}
+
+.chip-track {
+  width: 96px;
+  height: 8px;
+  background: rgba(10, 16, 20, 0.65);
+  border: 1px solid var(--rail-border);
+  border-radius: 4px;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.chip-fill {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width 160ms ease;
+}
+
+.battle-wind {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--type-meta);
+  color: var(--ink-dim);
+  background: var(--rail);
+  border: 1px solid var(--rail-border);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+}
+
+.chip-arrow {
+  display: inline-block;
+  color: var(--gold);
+  font-size: 13px;
+  transform-origin: center;
+  transition: transform 300ms ease;
 }
 
 .hud-bar {

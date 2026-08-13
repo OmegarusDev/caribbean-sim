@@ -11,7 +11,8 @@ export interface Scene {
   enter?(): void;
   exit?(): void;
   update(dt: number): void;
-  render(ctx: CanvasRenderingContext2D, w: number, h: number): void;
+  /** 2D canvas for fallback scenes; GL scenes ignore it and use their own context. */
+  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void;
   /** Return true to consume the back action; false falls through to pop. */
   handleBack?(): boolean;
 }
@@ -96,9 +97,9 @@ export class SceneManager {
     this.current?.update(dt);
   }
 
-  render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
     this.current?.render(ctx, w, h);
-    if (this.transition === 'none') return;
+    if (this.transition === 'none' || !ctx) return;
     const alpha =
       this.transition === 'fadeOut'
         ? Math.min(1, this.transitionT / (FADE_MS / 1000))
@@ -109,7 +110,6 @@ export class SceneManager {
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
   }
-
   private beginFadeOut(nav: PendingNav): void {
     this.pending = nav;
     this.transition = 'fadeOut';

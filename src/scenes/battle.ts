@@ -19,6 +19,8 @@ import { GfxEngine } from '../gfx/pipeline';
 import { FxSystem } from '../gfx/fx';
 import { drawOcean } from '../gfx/ocean';
 import { drawShipWorld } from '../gfx/ship';
+import { SeaScene, toShipView } from '../gfx/scene3d';
+import type { GlContext } from '../gfx/gl/context';
 import { HULL_CLASSES } from '../content/ships';
 import { el } from '../shell/ui/dom';
 
@@ -27,6 +29,7 @@ export interface BattleDeps {
   scenes: SceneManager;
   input: Input;
   synth: Synth;
+  gl: GlContext | null;
 }
 
 export interface BattleLaunch {
@@ -60,7 +63,8 @@ export class BattleScene implements Scene {
   private captionLife = 0;
   private story: string[] = [];
   private spectacle = new SpectacleMeter();
-  private gfx: GfxEngine | null = null;
+  private gfx2d: GfxEngine | null = null;
+  private scene3d: SeaScene | null = null;
   private fx: FxSystem;
   private sinkTimers = new Map<string, number>();
   private result: BattleResult | null = null;
@@ -70,6 +74,7 @@ export class BattleScene implements Scene {
   private root: HTMLElement | null = null;
   private captionEl: HTMLElement | null = null;
   private ferocityEl: HTMLElement | null = null;
+  private windEl: HTMLElement | null = null;
   private inspectEl: HTMLElement | null = null;
   private bannerEl: HTMLElement | null = null;
 
@@ -99,7 +104,7 @@ export class BattleScene implements Scene {
   exit(): void {
     if (this.root) this.root.remove();
     this.root = null;
-    this.gfx?.clear();
+    this.gfx2d?.clear();
   }
 
   handleBack(): boolean {
@@ -114,6 +119,7 @@ export class BattleScene implements Scene {
 
   update(dt: number): void {
     this.time += dt;
+    this.lastDt = dt;
     this.hudTick++;
 
     const key = this.handleKeys();
@@ -148,8 +154,8 @@ export class BattleScene implements Scene {
 
     this.spectacle.tick(dt);
 
-    if (this.gfx) {
-      this.gfx.camera.update(
+    if (this.gfx2d) {
+      this.gfx2d.camera.update(
         this.battle.ships
           .filter((s) => !s.sunk)
           .map((s) => ({ x: s.x, y: s.y })),
@@ -170,22 +176,63 @@ export class BattleScene implements Scene {
     this.refreshHud();
   }
 
-  render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    if (!this.gfx) {
-      this.gfx = new GfxEngine(ctx);
-      this.gfx.camera.setInterest(this.firstShipX, this.firstShipY, 2);
-      this.gfx.camera.x = this.firstShipX;
-      this.gfx.camera.y = this.firstShipY;
-      this.gfx.camera.zoom = 0.8;
-      this.registerLayers();
+  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
+    const gl = this.deps.gl;
+    if (gl && !gl.lost) {
+      if (!this.scene3d) {
+        this.scene3d = new SeaScene(gl);
+        this.scene3d.setWind(this.battle.config.windDir, this.battle.config.windStrength);
+        this.scene3d.camera.setInterest(this.firstShipX, this.firstShipY, 2);
+        this.scene3d.camera.targetX = this.firstShipX;
+        this.scene3d.camera.targetZ = this.firstShipY;
+        this.scene3d.camera.dolly = 760;
+      }
+      const scene = this.scene3d;
+      scene.camera.resize(w, h);
+      scene.camera.update(
+        this.battle.ships.filter((s) => !s.sunk).map((s) => ({ x: s.x, y: s.y })),
+        this.lastDt,
+        this.deps.input,
+        this.selectedPoint(),
+      );
+      scene.smoothPoses(this.lastDt, this.time);
+      const views = this.battle.ships.map((s) =>
+        toShipView(s, this.selectedId === s.id),
+      );
+      for (const v of views) {
+        v.sinkT = this.sinkTimers.get(v.id) ?? 0;
+      }
+      scene.setShips(views);
+      scene.setParticles(this.fx.particles);
+      scene.render(this.time);
+      return;
     }
-    this.gfx.frame(w, h);
+    if (!ctx) return;
+    if (!this.gfx2d) {
+      this.gfx2d = new GfxEngine(ctx);
+      this.gfx2d.camera.setInterest(this.firstShipX, this.firstShipY, 2);
+      this.gfx2d.camera.x = this.firstShipX;
+      this.gfx2d.camera.y = this.firstShipY;
+      this.gfx2d.camera.zoom = 0.8;
+      this.registerLayers2d();
+    }
+    this.gfx2d.frame(w, h);
   }
 
-  private registerLayers(): void {
-    if (!this.gfx) return;
-    const cam = this.gfx.camera;
-    const gfx = this.gfx;
+  private lastDt = 1 / 60;
+  private lastW = 800;
+  private lastH = 600;
+
+  private selectedPoint(): { x: number; y: number } | null {
+    if (this.selectedId === null) return null;
+    const s = this.battle.ships.find((x) => x.id === this.selectedId);
+    return s && !s.sunk ? { x: s.x, y: s.y } : null;
+  }
+
+  private registerLayers2d(): void {
+    if (!this.gfx2d) return;
+    const cam = this.gfx2d.camera;
+    const gfx = this.gfx2d;
     gfx.on('ocean', () => {
       drawOcean(gfx.ctx, gfx.w, gfx.h, cam, this.time);
     });
@@ -205,10 +252,6 @@ export class BattleScene implements Scene {
     });
     gfx.on('fx', () => {
       this.fx.draw(gfx.ctx, cam);
-    });
-    gfx.on('overlay', () => {
-      this.drawWindIndicator(gfx.ctx, gfx.w);
-      this.drawFerocity(gfx.ctx, gfx.w);
     });
   }
 
@@ -297,7 +340,8 @@ export class BattleScene implements Scene {
 
       const actor = this.battle.ships.find((s) => s.id === ev.actor);
       const target = ev.target ? this.battle.ships.find((s) => s.id === ev.target) : undefined;
-      if (!this.gfx) continue;
+      const cam = this.scene3d?.camera ?? this.gfx2d?.camera;
+      if (!cam) continue;
       switch (ev.kind) {
         case 'broadside':
           if (actor) {
@@ -309,10 +353,10 @@ export class BattleScene implements Scene {
           if (target) {
             this.fx.splinters(target.x, target.y);
             if (ev.detail === 'raked') {
-              this.gfx.camera.setInterest(target.x, target.y, 1.4);
-              this.gfx.camera.shake(7);
+              cam.setInterest(target.x, target.y, 1.4);
+              cam.shake(7);
             } else {
-              this.gfx.camera.shake(3.5);
+              cam.shake(3.5);
             }
           }
           break;
@@ -322,13 +366,13 @@ export class BattleScene implements Scene {
         case 'sink':
           if (actor) {
             this.fx.bubbles(actor.x, actor.y);
-            this.gfx.camera.setInterest(actor.x, actor.y, 2.2);
-            this.gfx.camera.shake(12);
+            cam.setInterest(actor.x, actor.y, 2.2);
+            cam.shake(12);
           }
           break;
         case 'capture':
         case 'strike':
-          this.gfx.camera.shake(5);
+          cam.shake(5);
           break;
         default:
           break;
@@ -358,57 +402,25 @@ export class BattleScene implements Scene {
     }
   }
 
-  private drawWindIndicator(ctx: CanvasRenderingContext2D, w: number): void {
-    const x = 36;
-    const y = 34;
-    const dir = this.battle.config.windDir;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(dir);
-    ctx.strokeStyle = 'rgba(240, 240, 235, 0.75)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.lineTo(12, 0);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(240, 240, 235, 0.75)';
-    ctx.beginPath();
-    ctx.moveTo(12, 0);
-    ctx.lineTo(3, -6);
-    ctx.lineTo(3, 6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    ctx.font = '11px var(--font-ui)';
-    ctx.fillStyle = 'rgba(240, 240, 235, 0.6)';
-    ctx.fillText(`Wind ${Math.round(this.battle.config.windStrength * 100)}%`, x - 24, y + 20);
-    void w;
-  }
-
-  private drawFerocity(ctx: CanvasRenderingContext2D, w: number): void {
-    const x = 14;
-    const y = 62;
-    const ratio = Math.min(1, this.spectacle.score / 300);
-    ctx.fillStyle = 'rgba(10, 16, 20, 0.65)';
-    ctx.fillRect(x, y, 96, 8);
-    ctx.fillStyle = ratio > 0.8 ? '#c06655' : '#d4a94f';
-    ctx.fillRect(x, y, 96 * ratio, 8);
-    ctx.font = '11px var(--font-ui)';
-    ctx.fillStyle = 'rgba(240, 240, 235, 0.6)';
-    ctx.fillText('SPECTACLE', x, y - 4);
-    void w;
-  }
-
   private handleClick(): void {
     const input = this.deps.input;
     if (!input.pointer.clicked) return;
-    if (!this.gfx) return;
-    if (this.gfx.camera.consumeDragJustEnded()) return;
+    if (this.scene3d) {
+      if (this.scene3d.camera.consumeDragJustEnded()) return;
+      const idx = this.scene3d.pickShip(input.pointer.x, input.pointer.y, this.lastW, this.lastH);
+      const id = idx >= 0 ? this.battle.ships[idx]?.id ?? null : null;
+      if (id !== null && this.selectedId === id) this.selectedId = null;
+      else this.selectedId = id;
+      this.hudDirty = true;
+      return;
+    }
+    if (!this.gfx2d) return;
+    if (this.gfx2d.camera.consumeDragJustEnded()) return;
     let bestId: string | null = null;
     let bestD = 30;
     for (const ship of this.battle.ships) {
       if (ship.sunk) continue;
-      const s = this.gfx.camera.worldToScreen(ship.x, ship.y);
+      const s = this.gfx2d.camera.worldToScreen(ship.x, ship.y);
       const d = Math.hypot(input.pointer.x - s.x, input.pointer.y - s.y);
       if (d < bestD) {
         bestD = d;
@@ -428,6 +440,15 @@ export class BattleScene implements Scene {
     this.root.append(this.captionEl);
 
     this.ferocityEl = el('div', { className: 'battle-ferocity' });
+    this.ferocityEl.innerHTML =
+      '<span class="chip-label">SPECTACLE</span><span class="chip-track"><i class="chip-fill"></i></span>';
+    this.root.append(this.ferocityEl);
+
+    const windEl = el('div', { className: 'battle-wind' });
+    windEl.innerHTML =
+      '<span class="chip-arrow" aria-hidden="true">➤</span><span class="chip-wind-label">Wind</span>';
+    this.root.append(windEl);
+    this.windEl = windEl;
 
     const bar = el('div', { className: 'hud-bar' });
     const left = el('div', { className: 'hud-group' });
@@ -489,7 +510,23 @@ export class BattleScene implements Scene {
     }
 
     if (this.ferocityEl) {
-      this.ferocityEl.textContent = `Spectacle ${Math.round(this.spectacle.score)}`;
+      const ratio = Math.min(1, this.spectacle.score / 300);
+      const fill = this.ferocityEl.querySelector<HTMLElement>('.chip-fill');
+      if (fill) {
+        fill.style.width = `${Math.round(ratio * 100)}%`;
+        fill.style.background = ratio > 0.8 ? '#c06655' : '#d4a94f';
+      }
+    }
+
+    if (this.windEl) {
+      const arrow = this.windEl.querySelector<HTMLElement>('.chip-arrow');
+      if (arrow) {
+        arrow.style.transform = `rotate(${(this.battle.config.windDir * 180) / Math.PI + 90}deg)`;
+      }
+      const label = this.windEl.querySelector<HTMLElement>('.chip-wind-label');
+      if (label) {
+        label.textContent = `Wind ${Math.round(this.battle.config.windStrength * 100)}%`;
+      }
     }
 
     const speedBtns = this.root.querySelectorAll<HTMLButtonElement>('[data-speed]');

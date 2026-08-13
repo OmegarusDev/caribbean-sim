@@ -10,6 +10,8 @@ import { btn, clear, el } from '../shell/ui/dom';
 import { confirmModal, panelModal } from '../shell/ui/modal';
 import { toast } from '../shell/ui/toast';
 import { drawSea } from '../gfx/sea';
+import { SeaScene } from '../gfx/scene3d';
+import type { GlContext } from '../gfx/gl/context';
 import { SkirmishScene } from './skirmish';
 
 export interface TitleDeps {
@@ -18,12 +20,14 @@ export interface TitleDeps {
   save: SaveManager<GameState>;
   input: Input;
   synth: Synth;
+  gl: GlContext | null;
 }
 
 export const GAME_VERSION = 'v0.0.1';
 
 export class TitleScene implements Scene {
   private time = 0;
+  private scene3d: SeaScene | null = null;
 
   constructor(private readonly deps: TitleDeps) {}
 
@@ -37,9 +41,27 @@ export class TitleScene implements Scene {
 
   update(dt: number): void {
     this.time += dt;
+    if (this.scene3d) {
+      this.scene3d.camera.smoothYaw += dt * 0.045;
+      this.scene3d.camera.update([], dt, this.deps.input, null);
+      this.scene3d.setParticles([]);
+    }
   }
 
-  render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
+    if (this.deps.gl && !this.deps.gl.lost) {
+      if (!this.scene3d) {
+        this.scene3d = new SeaScene(this.deps.gl);
+        this.scene3d.setWind(0.9, 0.8);
+        this.scene3d.camera.smoothDolly = 820;
+        this.scene3d.camera.smoothPitch = 0.5;
+        this.scene3d.camera.smoothYaw = 0;
+      }
+      this.scene3d.camera.resize(w, h);
+      this.scene3d.render(this.time);
+      return;
+    }
+    if (!ctx) return;
     drawSea(ctx, w, h, this.time);
   }
 
@@ -94,7 +116,15 @@ export class TitleScene implements Scene {
       btn('Skirmish', {
         className: 'ghost',
         onClick: () =>
-          scenes.push(new SkirmishScene({ chrome, scenes, input: this.deps.input, synth: this.deps.synth })),
+          scenes.push(
+            new SkirmishScene({
+              chrome,
+              scenes,
+              input: this.deps.input,
+              synth: this.deps.synth,
+              gl: this.deps.gl,
+            }),
+          ),
       }),
     );
 

@@ -17,7 +17,9 @@ import type {
 } from './types';
 import { BATTLE_TICK, DEFAULT_MAX_TICKS } from './types';
 
-const DRIFT = 0.16;
+/** Hull grip on the water — lateral velocity decays fast so the hull faces
+ * its course; hard turns leave only ~10-15° of leeway (realistic crab). */
+const DRIFT = 3.6;
 const GRAPPLE_MULT = 0.55;
 const BOARD_RESOLVE_TICKS = 10;
 const BOARD_MAX_TICKS = 600;
@@ -94,6 +96,8 @@ export class Battle {
       this.applyPhysics(ship);
     }
 
+    this.applyGrappleConstraints();
+
     for (const ship of this.ships) {
       if (ship.sunk || ship.struck) continue;
       if (ship.onFire) this.burn(ship);
@@ -113,38 +117,7 @@ export class Battle {
   }
 
   private applyPhysics(ship: ShipState): void {
-    const cls = HULL_CLASSES[ship.hullClass];
-    const dt = BATTLE_TICK;
-    const windDir = this.config.windDir;
-    const windStrength = this.config.windStrength;
-
-    const hvx = Math.cos(ship.heading);
-    const hvy = Math.sin(ship.heading);
-    const along = ship.vx * hvx + ship.vy * hvy;
-
-    const app = Math.cos(ship.heading - windDir);
-    let windFactor = 0.35 + 0.65 * clamp01((1 + app) / 2);
-    if (app < -0.5) windFactor *= 0.3;
-    const sailFactor = ship.grappledWith !== null ? 0 : 0.2 + 0.8 * ship.sailState;
-    const hullFactor = 0.75 + 0.25 * (ship.hull / cls.maxHull);
-    let targetSpeed =
-      cls.baseSpeed * (0.3 + 0.7 * windStrength) * windFactor * sailFactor * hullFactor;
-    if (ship.grappledWith !== null) targetSpeed = 0;
-
-    const newAlong = approach(along, targetSpeed, cls.accel * dt);
-    const latX = ship.vx - hvx * along;
-    const latY = ship.vy - hvy * along;
-    const latDamp = Math.exp(-DRIFT * dt);
-    ship.vx = hvx * newAlong + latX * latDamp;
-    ship.vy = hvy * newAlong + latY * latDamp;
-
-    const way = clamp01(Math.abs(newAlong) / cls.baseSpeed);
-    const turn = clamp(ship.rudder, -1, 1) * cls.turnRate * (0.25 + 0.75 * way) * dt;
-    ship.heading = normalizeAngle(ship.heading + turn);
-
-    ship.x += ship.vx * dt;
-    ship.y += ship.vy * dt;
-    ship.speed = Math.hypot(ship.vx, ship.vy);
+    applyShipPhysics(ship, this.config.windDir, this.config.windStrength);
   }
 
   private tryFire(ship: ShipState): void {
@@ -281,6 +254,35 @@ export class Battle {
 
     const moraleHit = (hullDamage / cls.maxHull) * 12 + (raked ? 8 : 0) + crewLoss * 3;
     target.morale -= moraleHit;
+  }
+
+  private applyGrappleConstraints(): void {
+    for (const leader of this.ships) {
+      if (!leader.boardLeader || leader.grappledWith === null) continue;
+      const other = this.ships.find((s) => s.id === leader.grappledWith);
+      if (!other) continue;
+      const clsA = HULL_CLASSES[leader.hullClass];
+      const clsB = HULL_CLASSES[other.hullClass];
+      const common = normalizeAngle(Math.atan2(
+        Math.sin(leader.heading) + Math.sin(other.heading),
+        Math.cos(leader.heading) + Math.cos(other.heading),
+      ));
+      leader.heading = rotateToward(leader.heading, common, 0.05);
+      other.heading = rotateToward(other.heading, common, 0.05);
+      const avx = (leader.vx + other.vx) / 2;
+      const avy = (leader.vy + other.vy) / 2;
+      leader.vx = avx;
+      leader.vy = avy;
+      other.vx = avx;
+      other.vy = avy;
+      leader.speed = Math.hypot(avx, avy);
+      other.speed = leader.speed;
+      const perpX = -Math.sin(common);
+      const perpY = Math.cos(common);
+      const gap = (clsA.length + clsB.length) * 0.28;
+      other.x = leader.x + perpX * gap;
+      other.y = leader.y + perpY * gap;
+    }
   }
 
   private burn(ship: ShipState): void {
@@ -454,6 +456,7 @@ export class Battle {
     ship.struck = true;
     ship.intention = 'STRIKE';
     ship.rudder = 0;
+    ship.sailState = 0;
     this.pushEvent({
       kind: 'strike',
       actor: ship.id,
@@ -587,6 +590,54 @@ export function runToEnd(battle: Battle): BattleResult {
 function approach(current: number, target: number, maxDelta: number): number {
   if (current < target) return Math.min(target, current + maxDelta);
   return Math.max(target, current - maxDelta);
+}
+
+/** Rotate `current` toward `target` by at most `maxDelta` radians. */
+export function rotateToward(current: number, target: number, maxDelta: number): number {
+  let diff = normalizeAngle(target - current);
+  const step = clamp(diff, -maxDelta, maxDelta);
+  return normalizeAngle(current + step);
+}
+
+/**
+ * One tick of ship kinematics — exported so tests can verify the steering
+ * contract: in steady state the hull faces its course (heading ≈ velocity).
+ */
+export function applyShipPhysics(
+  ship: ShipState,
+  windDir: number,
+  windStrength: number,
+): void {
+  const cls = HULL_CLASSES[ship.hullClass];
+  const dt = BATTLE_TICK;
+
+  const hvx = Math.cos(ship.heading);
+  const hvy = Math.sin(ship.heading);
+  const along = ship.vx * hvx + ship.vy * hvy;
+
+  const app = Math.cos(ship.heading - windDir);
+  let windFactor = 0.35 + 0.65 * clamp01((1 + app) / 2);
+  if (app < -0.5) windFactor *= 0.3;
+  const sailFactor = ship.grappledWith !== null ? 0 : 0.2 + 0.8 * ship.sailState;
+  const hullFactor = 0.75 + 0.25 * (ship.hull / cls.maxHull);
+  let targetSpeed =
+    cls.baseSpeed * (0.3 + 0.7 * windStrength) * windFactor * sailFactor * hullFactor;
+  if (ship.grappledWith !== null) targetSpeed = 0;
+
+  const newAlong = approach(along, targetSpeed, cls.accel * dt);
+  const latX = ship.vx - hvx * along;
+  const latY = ship.vy - hvy * along;
+  const latDamp = Math.exp(-DRIFT * dt);
+  ship.vx = hvx * newAlong + latX * latDamp;
+  ship.vy = hvy * newAlong + latY * latDamp;
+
+  const way = clamp01(Math.abs(newAlong) / cls.baseSpeed);
+  const turn = clamp(ship.rudder, -1, 1) * cls.turnRate * (0.25 + 0.75 * way) * dt;
+  ship.heading = normalizeAngle(ship.heading + turn);
+
+  ship.x += ship.vx * dt;
+  ship.y += ship.vy * dt;
+  ship.speed = Math.hypot(ship.vx, ship.vy);
 }
 
 export function clamp(v: number, min: number, max: number): number {

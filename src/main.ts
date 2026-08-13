@@ -6,6 +6,7 @@ import { Input } from './shell/input';
 import { Synth } from './shell/audio';
 import { GameLoop } from './shell/boot';
 import { SceneManager } from './shell/scenes';
+import { createGl, type GlContext } from './gfx/gl/context';
 import { createGameSaveManager } from './game/state';
 import { toast } from './shell/ui/toast';
 import { TitleScene } from './scenes/title';
@@ -15,8 +16,13 @@ function main(): void {
 
   const shell = mountShell();
   shell.stageWrap.classList.remove('is-hidden');
-  const ctx = shell.stage.getContext('2d');
-  if (!ctx) throw new Error('2D canvas context unavailable');
+
+  const gl: GlContext | null = createGl(shell.stage);
+  let ctx: CanvasRenderingContext2D | null = null;
+  if (!gl) {
+    ctx = shell.stage.getContext('2d');
+    if (!ctx) throw new Error('Neither WebGL2 nor 2D canvas available');
+  }
 
   const input = new Input();
   input.attach(shell.stage, (cx, cy) => {
@@ -41,7 +47,7 @@ function main(): void {
       scenes.update(dt);
     },
     render() {
-      const { cssW, cssH } = resizeStageCanvas(shell.stage);
+      const { cssW, cssH } = resizeStageCanvas(shell.stage, gl);
       scenes.render(ctx, cssW, cssH);
       input.endFrame();
     },
@@ -51,7 +57,9 @@ function main(): void {
     if (e.code === 'Escape') scenes.handleBack();
   });
 
-  scenes.replace(new TitleScene({ chrome: shell.chrome, scenes, save, input, synth }));
+  scenes.replace(
+    new TitleScene({ chrome: shell.chrome, scenes, save, input, synth, gl }),
+  );
   loop.start();
 }
 

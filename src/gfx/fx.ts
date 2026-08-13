@@ -25,7 +25,7 @@ export interface Particle {
 }
 
 export class FxSystem {
-  private particles: Particle[] = [];
+  particles: Particle[] = [];
   private wakes = new Map<string, Array<{ x: number; y: number }>>();
 
   constructor(private readonly rand: () => number) {}
