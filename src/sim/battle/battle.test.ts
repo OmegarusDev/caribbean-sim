@@ -35,6 +35,9 @@ function testShip(partial: Partial<ShipState> = {}): ShipState {
     onFire: false,
     fireT: 0,
     guns: [],
+    phase: 'approach',
+    tacticT: 0,
+    orbitSign: 1,
     intention: 'HOLD',
     targetId: null,
     grappledWith: null,
@@ -84,11 +87,11 @@ describe('ship steering physics', () => {
     b.y = 0;
     a.heading = 0.4;
     b.heading = 2.9;
-    a.intention = 'BREACH';
     a.crew = a.maxCrew;
     a.morale = 100;
     let grappled = false;
     for (let i = 0; i < 400 && battle.phase === 'ongoing'; i++) {
+      a.phase = 'boarding'; // the phase engine decides intentions now
       battle.step();
       if (a.grappledWith !== null) {
         grappled = true;

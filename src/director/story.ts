@@ -27,6 +27,8 @@ export function eventLine(ev: SimEvent, names: (id?: string) => string): string 
       return `${actor} grapples ${target} — to the rail!`;
     case 'boardRepulse':
       return `${target}'s crew throws ${actor} back!`;
+    case 'escape':
+      return `${actor} slips away with the wind — the chase is lost!`;
     default:
       return null;
   }

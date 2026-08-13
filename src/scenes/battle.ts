@@ -225,7 +225,7 @@ export class BattleScene implements Scene {
         shipToEntity(ship, {
           selected: this.selectedId === ship.id,
           time: this.time,
-          windDir: this.battle.config.windDir,
+          windDir: this.battle.getWind().dir,
           sinkT: this.sinkTimers.get(ship.id) ?? 0,
         }),
       );
@@ -600,12 +600,13 @@ export class BattleScene implements Scene {
 
     if (this.windEl) {
       const arrow = this.windEl.querySelector<HTMLElement>('.chip-arrow');
+      const wind = this.battle.getWind();
       if (arrow) {
-        arrow.style.transform = `rotate(${(this.battle.config.windDir * 180) / Math.PI + 90}deg)`;
+        arrow.style.transform = `rotate(${(wind.dir * 180) / Math.PI + 90}deg)`;
       }
       const label = this.windEl.querySelector<HTMLElement>('.chip-wind-label');
       if (label) {
-        label.textContent = `Wind ${Math.round(this.battle.config.windStrength * 100)}%`;
+        label.textContent = `Wind ${Math.round(wind.strength * 100)}%`;
       }
     }
 
@@ -677,6 +678,9 @@ export class BattleScene implements Scene {
     const win = this.result.winner === 0;
     const title = this.result.winner === 'DRAW' ? 'DRAW' : win ? 'VICTORY' : 'DEFEAT';
     const lines: string[] = [];
+    if (this.result.endReason === 'escape') {
+      lines.push('The chase broke — the enemy slipped away with the wind.');
+    }
     if (this.result.captured.length)
       lines.push(`Captured: ${this.result.captured.join(', ')}`);
     if (this.result.sunk.length) lines.push(`Sunk: ${this.result.sunk.join(', ')}`);

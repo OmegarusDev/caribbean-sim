@@ -14,6 +14,15 @@ export type ShipIntention =
   | 'STRIKE'
   | 'MANUAL';
 
+/** The captain's engagement phase — how the ship sails, not what it wants. */
+export type CaptainPhase =
+  | 'approach' // close from the windward side (weather gauge)
+  | 'stare' // mutual caution at range — waiting for a mistake
+  | 'exchange' // broadside passes: close to fire, wheel away to reload
+  | 'pressing' // advantage: chase, cross the T, rake
+  | 'fleeing' // beaten: run downwind, spoil the enemy's aim
+  | 'boarding'; // alongside, reefed, grapples
+
 export type BattlePhase = 'ongoing' | 'ended';
 
 export interface Captain {
@@ -60,6 +69,9 @@ export interface ShipState {
   onFire: boolean;
   fireT: number;
   guns: GunState[];
+  phase: CaptainPhase;
+  tacticT: number;
+  orbitSign: -1 | 1;
   intention: ShipIntention;
   targetId: string | null;
   grappledWith: string | null;
@@ -91,6 +103,8 @@ export interface BattleConfig {
 export interface BattleResult {
   winner: 0 | 1 | 'DRAW';
   ticks: number;
+  /** 'escape' when a fleeing ship outran the chase. */
+  endReason?: 'combat' | 'escape';
   remaining: Array<{
     id: string;
     team: 0 | 1;
@@ -101,6 +115,8 @@ export interface BattleResult {
   captured: string[];
   sunk: string[];
   struck: string[];
+  /** Names that slipped away with the wind. */
+  escaped?: string[];
 }
 
 export const BATTLE_TICK = 0.05;

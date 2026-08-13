@@ -1,33 +1,46 @@
 /**
- * Captain AI — fallible autopilots (the Apex DriverBrain pattern) steering
- * Lanista-style intentions. Personality stats shape every decision:
- *   skill         → gun accuracy (in battle.ts) and turn-noise (here)
- *   bravery       → boarding appetite, strike resistance, aggression
- *   focus         → target stickiness and steady aim
- *   determination → chase persistence, strike resistance
+ * Captain AI — the phase engine.
+ *
+ * Each ship sails inside an engagement phase that reads like real naval
+ * combat: approach from the windward side (the weather gauge, tacking when
+ * pinched), stare down the enemy at range, exchange broadside passes
+ * (close to fire, wheel away to reload), press an advantage (chase, cross
+ * the T, rake), flee downwind when beaten, or set up a boarding alongside.
+ * Personality stats shape every decision:
+ *   skill         → gun accuracy (battle.ts) and sailing efficiency here
+ *   bravery       → aggression, boarding appetite, pressing after damage
+ *   focus         → steady aim, orbit discipline, target stickiness
+ *   determination → chase persistence, last stands, strike resistance
  */
 import { HULL_CLASSES } from '../../content/ships';
 import { SeededRng } from '../rng';
 import { clamp, clamp01, normalizeAngle } from './battle';
-import type { ShipIntention, ShipState } from './types';
+import type { CaptainPhase, ShipIntention, ShipState } from './types';
+
+const NO_SAIL_ANGLE = 0.96; // rad — pinching harder than this is impossible
+const PHASE_EVAL_TICKS = 40; // re-evaluate the phase every 2s of sim time
+const TACK_FLIP_TICKS = 150;
 
 export function updateCaptain(
   ship: ShipState,
   ships: ShipState[],
   rng: SeededRng,
   windDir: number,
+  tick: number,
 ): void {
   const cls = HULL_CLASSES[ship.hullClass];
 
   if (ship.grappledWith !== null) {
     ship.rudder = 0;
     ship.sailState = 0.4;
+    ship.phase = 'boarding';
     ship.intention = 'BREACH';
     return;
   }
 
   const enemy = nearestEnemy(ship, ships);
   if (!enemy) {
+    ship.phase = 'approach';
     ship.intention = 'HOLD';
     ship.sailState = 0.2;
     ship.rudder = 0;
@@ -38,57 +51,69 @@ export function updateCaptain(
   const dx = enemy.x - ship.x;
   const dy = enemy.y - ship.y;
   const dist = Math.hypot(dx, dy);
-
-  if (ship.targetId !== null && ship.captain.focus > 55) {
-    const stick = ships.find((s) => s.id === ship.targetId && !s.sunk && !s.struck);
-    if (stick && Math.hypot(stick.x - ship.x, stick.y - ship.y) < cls.gunRange * 2.2) {
-      // keep current target — resolved below by re-picking the same enemy
-    }
-  }
   ship.targetId = enemy.id;
 
-  const hullRatio = clamp01(ship.hull / ship.maxHull);
-  const crewRatio = clamp01(ship.crew / ship.maxCrew);
-  const morale01 = clamp01(ship.morale / ship.maxMorale);
-  const enCrewRatio = clamp01(enemy.crew / enemy.maxCrew);
-
-  const aggression =
-    ((ship.captain.bravery - 40) / 90) * 0.55 +
-    ((ship.captain.focus - 50) / 100) * 0.3 +
-    rng.range(-0.2, 0.2);
-  const fear = (1 - morale01) * 0.45 + (1 - crewRatio) * 0.25;
-
-  let intention: ShipIntention;
-  const weakened = hullRatio < 0.24 || crewRatio < 0.32;
-  const outnumbered = countAlive(ships, enemy.team) > countAlive(ships, ship.team);
-
-  if (weakened || (outnumbered && hullRatio < 0.4)) {
-    intention = 'EVADE';
-  } else if (dist < 170) {
-    const confident =
-      aggression - fear > -0.05 &&
-      crewRatio > 0.6 &&
-      hullRatio > 0.5 &&
-      crewRatio >= enCrewRatio - 0.08;
-    intention = confident ? 'BREACH' : 'EVADE';
-  } else if (dist < cls.gunRange * 1.1) {
-    // In gun range: maneuver to the beam — never charge head-on.
-    intention = aggression - fear > -0.15 ? 'WHEEL' : 'EVADE';
-  } else {
-    intention = aggression > -0.05 ? 'CHASE' : 'HOLD';
+  ship.tacticT++;
+  if (ship.tacticT >= PHASE_EVAL_TICKS) {
+    ship.phase = decidePhase(ship, enemy, dist, rng, tick);
+    ship.tacticT = 0;
   }
-  ship.intention = intention;
+  const phase = ship.phase;
 
-  const aim = pickAim(ship, enemy, dx, dy, dist, intention, windDir, rng);
+  let aim: number;
+  switch (phase) {
+    case 'approach':
+      aim = approachAim(ship, enemy, dx, dy, dist, windDir, rng, tick);
+      ship.sailState = 1;
+      break;
+    case 'stare':
+      aim = stareAim(ship, tick);
+      ship.sailState = 0.7;
+      break;
+    case 'exchange':
+      aim = exchangeAim(ship, enemy, rng);
+      ship.sailState = 1;
+      break;
+    case 'pressing':
+      aim = pressingAim(enemy, dx, dy, dist);
+      ship.sailState = 1;
+      break;
+    case 'fleeing':
+      aim = fleeAim(windDir, tick);
+      ship.sailState = 1;
+      break;
+    case 'boarding':
+      aim = Math.atan2(dy, dx);
+      ship.sailState = 0.55;
+      break;
+    default:
+      aim = ship.aimHeading;
+      ship.sailState = 0.3;
+  }
   ship.aimHeading = aim;
 
   const diff = normalizeAngle(aim - ship.heading);
-  const noise = ((ship.captain.focus - 50) / 100) * 0.5;
-  const rudder = clamp((diff + rng.range(-noise, noise)) * 2.0 / cls.turnRate, -1, 1);
-  ship.rudder = rudder;
+  const noise =
+    ((ship.captain.focus - 50) / 100) * 0.35 + ((100 - ship.captain.skill) / 100) * 0.3;
+  ship.rudder = clamp((diff + rng.range(-noise, noise)) * 2.0 / cls.turnRate, -1, 1);
+  ship.intention = intentionFor(phase);
+}
 
-  ship.sailState =
-    intention === 'BREACH' ? 0.6 : intention === 'WHEEL' ? 0.85 : intention === 'HOLD' ? 0.2 : 1;
+function intentionFor(phase: CaptainPhase): ShipIntention {
+  switch (phase) {
+    case 'approach':
+      return 'CHASE';
+    case 'stare':
+      return 'HOLD';
+    case 'exchange':
+      return 'WHEEL';
+    case 'pressing':
+      return 'CHASE';
+    case 'fleeing':
+      return 'EVADE';
+    case 'boarding':
+      return 'BREACH';
+  }
 }
 
 function nearestEnemy(ship: ShipState, ships: ShipState[]): ShipState | null {
@@ -105,55 +130,133 @@ function nearestEnemy(ship: ShipState, ships: ShipState[]): ShipState | null {
   return best;
 }
 
-function countAlive(ships: ShipState[], team: 0 | 1): number {
-  let n = 0;
-  for (const s of ships) {
-    if (s.team === team && !s.sunk && !s.struck) n++;
+function decidePhase(
+  ship: ShipState,
+  enemy: ShipState,
+  dist: number,
+  rng: SeededRng,
+  tick: number,
+): CaptainPhase {
+  const cls = HULL_CLASSES[ship.hullClass];
+  const enCls = HULL_CLASSES[enemy.hullClass];
+  const hullRatio = clamp01(ship.hull / ship.maxHull);
+  const crewRatio = clamp01(ship.crew / ship.maxCrew);
+  const enHull = clamp01(enemy.hull / enemy.maxHull);
+  const enCrew = clamp01(enemy.crew / enemy.maxCrew);
+  const brave = (ship.captain.bravery - 50) / 50; // -1..1
+  const determined = (ship.captain.determination - 50) / 50;
+
+  const beaten = hullRatio < 0.3 || crewRatio < 0.35;
+  const winning = hullRatio - enHull > 0.15 || crewRatio - enCrew > 0.15;
+  const desperate = hullRatio < 0.18 && crewRatio < 0.3;
+
+  if (desperate) {
+    // Out of options: if we can outrun the foe, flee; else gamble on a board.
+    if (cls.baseSpeed > enCls.baseSpeed * 1.05 && rng.chance(0.6)) return 'fleeing';
+    return 'boarding';
   }
-  return n;
+  if (beaten) {
+    if (rng.chance(clamp01(0.3 - determined * 0.25))) return 'pressing'; // last stand
+    return 'fleeing';
+  }
+  if (winning) {
+    if (dist < 420 && brave > 0.15 && crewRatio > enCrew + 0.05 && rng.chance(0.5)) {
+      return 'boarding';
+    }
+    return 'pressing';
+  }
+  if (dist > cls.gunRange * 1.12) {
+    // The opening: healthy ships on open water size each other up.
+    if (tick < 420 && dist > 560 && rng.chance(0.5)) return 'stare';
+    return 'approach';
+  }
+  return 'exchange';
 }
 
-function pickAim(
+/** Close from the enemy's windward side — and tack when the course pinches. */
+function approachAim(
   ship: ShipState,
   enemy: ShipState,
   dx: number,
   dy: number,
   dist: number,
-  intention: ShipIntention,
   windDir: number,
   rng: SeededRng,
+  tick: number,
 ): number {
-  switch (intention) {
-    case 'BREACH':
-      return Math.atan2(dy, dx);
-    case 'CHASE': {
-      const leadT = clamp(dist / 420, 0, 2.4);
-      return Math.atan2(dy + enemy.vy * leadT, dx + enemy.vx * leadT);
-    }
-    case 'WHEEL': {
-      let perpX = -Math.sin(enemy.heading);
-      let perpY = Math.cos(enemy.heading);
-      if (perpX * dx + perpY * dy < 0) {
-        perpX = -perpX;
-        perpY = -perpY;
-      }
-      // Lead the beam point so we cross its T, not sail into its bow.
-      const leadT = clamp(dist / 520, 0.4, 1.8);
-      return Math.atan2(dy + enemy.vy * leadT + perpY * 300, dx + enemy.vx * leadT + perpX * 300);
-    }
-    case 'EVADE': {
-      const wx = Math.cos(windDir);
-      const wy = Math.sin(windDir);
-      let aim = Math.atan2(wy, wx);
-      const rel = normalizeAngle(aim - ship.heading);
-      if (Math.abs(rel) < 0.5) {
-        const jitter = rng.chance(0.5) ? 1 : -1;
-        aim = windDir + jitter * (Math.PI / 2) * 0.8;
-      }
-      return aim;
-    }
-    case 'HOLD':
-    default:
-      return ship.aimHeading;
+  const wx = Math.cos(windDir);
+  const wy = Math.sin(windDir);
+  // Approach point: on the enemy's windward side, about halfway out.
+  const tx = enemy.x - wx * dist * 0.55;
+  const ty = enemy.y - wy * dist * 0.55;
+  const aim = Math.atan2(ty - ship.y, tx - ship.x);
+  const relWind = Math.abs(normalizeAngle(aim - windDir));
+  if (relWind < NO_SAIL_ANGLE) return aim;
+  // Pinched: tack — beat toward the target's side of the wind, alternating
+  // the favorable tack so the ship makes progress instead of stalling.
+  const targetBearing = Math.atan2(dy, dx);
+  const toward = Math.sign(Math.sin(targetBearing - windDir)) || 1;
+  const beat = Math.floor(tick / TACK_FLIP_TICKS) % 2 === 0 ? 1 : -1;
+  const skill = ship.captain.skill;
+  const tackAngle = NO_SAIL_ANGLE * 0.92 * (0.9 + 0.1 * (skill / 100));
+  return normalizeAngle(windDir + toward * beat * tackAngle + rng.range(-0.02, 0.02));
+}
+
+/** Mutual caution at range — hold a gentle yaw and wait. */
+function stareAim(ship: ShipState, tick: number): number {
+  return ship.aimHeading + Math.sin(tick * 0.012 + ship.orbitSign) * 0.3;
+}
+
+/**
+ * Broadside passes: orbit the enemy's beam line. When guns are ready, close
+ * in for the pass; when they've fired, wheel away to reload and come again.
+ */
+function exchangeAim(
+  ship: ShipState,
+  enemy: ShipState,
+  rng: SeededRng,
+): number {
+  if (rng.chance(0.01)) ship.orbitSign = ship.orbitSign === 1 ? -1 : 1;
+  const ready = shipHasReadyGuns(ship);
+  const beam = enemy.heading + ship.orbitSign * (Math.PI / 2);
+  const range = ready ? 150 : 430;
+  const tx = enemy.x + Math.cos(beam) * range;
+  const ty = enemy.y + Math.sin(beam) * range;
+  // Close for the pass when guns are ready; wheel away to reload after.
+  return Math.atan2(ty - ship.y, tx - ship.x);
+}
+
+/** Advantage: chase and cross the enemy's T for raking fire. */
+function pressingAim(
+  enemy: ShipState,
+  dx: number,
+  dy: number,
+  dist: number,
+): number {
+  const fwd = enemy.heading;
+  let perpX = -Math.sin(fwd);
+  let perpY = Math.cos(fwd);
+  if (perpX * dx + perpY * dy < 0) {
+    perpX = -perpX;
+    perpY = -perpY;
   }
+  if (dist < 420) {
+    // Cross its bow: aim at a point ahead of the enemy's heading.
+    return Math.atan2(dy + Math.sin(fwd) * 190, dx + Math.cos(fwd) * 190);
+  }
+  const leadT = clamp(dist / 460, 0.4, 1.8);
+  return Math.atan2(dy + enemy.vy * leadT + perpY * 260, dx + enemy.vx * leadT + perpX * 260);
+}
+
+/** Run downwind with a lazy sway to spoil the enemy's aim. */
+function fleeAim(windDir: number, tick: number): number {
+  return windDir + Math.sin(tick * 0.045) * 0.22;
+}
+
+/** Any gun loaded (or within the early-press grace) on either side. */
+function shipHasReadyGuns(ship: ShipState): boolean {
+  for (const gun of ship.guns) {
+    if (gun.reload <= 0 || gun.reload <= gun.max * 0.15) return true;
+  }
+  return false;
 }

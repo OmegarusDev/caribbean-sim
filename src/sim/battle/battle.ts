@@ -38,13 +38,31 @@ export class Battle {
   tick = 0;
   phase: BattlePhase = 'ongoing';
   private recent: SimEvent[] = [];
+  private windDir: number;
+  private windStrength: number;
+  private windPhaseA: number;
+  private windPhaseB: number;
+  private chaseTicks = 0;
+  private prevChaseDist = 0;
+  private chaseEvaderId: string | null = null;
+  private endReason: 'combat' | 'escape' = 'combat';
+  private escapedNames: string[] = [];
 
   constructor(config: BattleConfig) {
     this.seed = config.seed;
     this.config = config;
     this.rng = new SeededRng(config.seed).split(0x0b1a7e);
     this.events = new EventRing(128);
+    this.windDir = config.windDir;
+    this.windStrength = config.windStrength;
+    this.windPhaseA = this.rng.range(0, Math.PI * 2);
+    this.windPhaseB = this.rng.range(0, Math.PI * 2);
     this.spawn();
+  }
+
+  /** The wind right now — veering and gusting, deterministic. */
+  getWind(): { dir: number; strength: number } {
+    return { dir: this.windDir, strength: this.windStrength };
   }
 
   getRecentEvents(): SimEvent[] {
@@ -87,6 +105,7 @@ export class Battle {
     if (this.phase !== 'ongoing') return;
     this.tick++;
     this.recent = [];
+    this.updateWind();
 
     for (const ship of this.ships) {
       if (ship.sunk || ship.struck) continue;
@@ -96,7 +115,7 @@ export class Battle {
       }
       ship.aiT -= BATTLE_TICK;
       if (ship.aiT <= 0) {
-        updateCaptain(ship, this.ships, this.rng, this.config.windDir);
+        updateCaptain(ship, this.ships, this.rng, this.windDir, this.tick);
         ship.aiT = 0.4;
       }
     }
@@ -133,8 +152,17 @@ export class Battle {
     if (this.checkEnd()) this.phase = 'ended';
   }
 
+  private updateWind(): void {
+    this.windDir = normalizeAngle(
+      this.config.windDir + Math.sin(this.tick * 0.002 + this.windPhaseA) * 0.4,
+    );
+    this.windStrength = clamp01(
+      this.config.windStrength + Math.sin(this.tick * 0.004 + this.windPhaseB) * 0.08,
+    );
+  }
+
   private applyPhysics(ship: ShipState): void {
-    applyShipPhysics(ship, this.config.windDir, this.config.windStrength);
+    applyShipPhysics(ship, this.windDir, this.windStrength);
   }
 
   /** Guns ready (loaded, or within the early-press grace) on a side. */
@@ -540,8 +568,52 @@ export class Battle {
       this.ships.filter((s) => s.team === team && !s.sunk && !s.struck).length;
     if (alive(1) === 0) return true;
     if (alive(0) === 0) return true;
+    if (this.chaseEscape()) return true;
     if (this.tick >= (this.config.maxTicks ?? DEFAULT_MAX_TICKS)) return true;
     return false;
+  }
+
+  /**
+   * The chase: when the gap between the two survivors keeps growing, one
+   * ship is outrunning the other. After ~45s of a widening gap the hunter
+   * gives up and the quarry slips away — the engagement ends as a draw.
+   * Detected geometrically so it holds through any phase flapping.
+   */
+  private chaseEscape(): boolean {
+    const alive = this.ships.filter((s) => !s.sunk && !s.struck);
+    if (alive.length !== 2) {
+      this.chaseTicks = 0;
+      this.prevChaseDist = 0;
+      this.chaseEvaderId = null;
+      return false;
+    }
+    const a = alive[0]!;
+    const b = alive[1]!;
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    const growing = this.prevChaseDist > 0 && dist > this.prevChaseDist + 0.5;
+    if (dist > 1300 && growing) {
+      if (this.chaseTicks === 0) {
+        // The moment the gap opens: the faster ship is the evader.
+        if (a.speed > b.speed + 5) this.chaseEvaderId = a.id;
+        else if (b.speed > a.speed + 5) this.chaseEvaderId = b.id;
+      }
+      if (this.chaseEvaderId !== null) this.chaseTicks++;
+    } else {
+      this.chaseTicks = Math.max(0, this.chaseTicks - 10);
+    }
+    this.prevChaseDist = dist;
+    if (this.chaseTicks < 900 || this.chaseEvaderId === null) return false;
+    const evader = this.ships.find((s) => s.id === this.chaseEvaderId);
+    if (!evader) return false;
+    this.endReason = 'escape';
+    this.escapedNames = [evader.name];
+    this.pushEvent({
+      kind: 'escape',
+      actor: evader.id,
+      tick: this.tick,
+      severity: 'major',
+    });
+    return true;
   }
 
   private pushEvent(ev: Omit<SimEvent, 'seq'>): void {
@@ -553,7 +625,8 @@ export class Battle {
     const alive0 = this.ships.filter((s) => s.team === 0 && !s.sunk && !s.struck);
     const alive1 = this.ships.filter((s) => s.team === 1 && !s.sunk && !s.struck);
     let winner: BattleResult['winner'];
-    if (alive1.length === 0) winner = 0;
+    if (this.endReason === 'escape') winner = 'DRAW';
+    else if (alive1.length === 0) winner = 0;
     else if (alive0.length === 0) winner = 1;
     else {
       const hull0 = alive0.reduce((a, s) => a + s.hull / s.maxHull, 0);
@@ -571,10 +644,12 @@ export class Battle {
     return {
       winner,
       ticks: this.tick,
+      endReason: this.endReason,
       remaining,
       captured: this.ships.filter((s) => s.struck).map((s) => s.name),
       sunk: this.ships.filter((s) => s.sunk).map((s) => s.name),
       struck: this.ships.filter((s) => s.struck).map((s) => s.name),
+      escaped: this.escapedNames.length ? this.escapedNames : undefined,
     };
   }
 }
@@ -619,6 +694,9 @@ function createShip(
     onFire: false,
     fireT: 0,
     guns: [],
+    phase: 'approach',
+    tacticT: 0,
+    orbitSign: 1,
     intention: 'HOLD',
     targetId: null,
     grappledWith: null,
