@@ -6,7 +6,8 @@ import { Input } from './shell/input';
 import { Synth } from './shell/audio';
 import { GameLoop } from './shell/boot';
 import { SceneManager } from './shell/scenes';
-import { createGl, type GlContext } from './gfx/gl/context';
+import { createGl, type GlContext } from './gfx/core/context';
+import { registerRestoreHook } from './gfx/present/shipMesh';
 import { createGameSaveManager } from './game/state';
 import { toast } from './shell/ui/toast';
 import { TitleScene } from './scenes/title';
@@ -31,6 +32,7 @@ function main(): void {
     showBootError('Your browser or device does not provide WebGL2.');
     return;
   }
+  registerRestoreHook(gl);
 
   const input = new Input();
   input.attach(shell.stage, (cx, cy) => {

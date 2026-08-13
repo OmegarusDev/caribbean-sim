@@ -3,12 +3,14 @@
  * Built once per hull class, drawn per ship with instance uniforms.
  * Model space: bow +x, up +y, port/starboard ±z.
  */
-import { HULL_CLASSES } from '../content/ships';
-import type { HullClassId } from '../content/ships';
-import type { GlHandle } from './gl/context';
-import { createMesh, type GlMesh, type MeshData } from './gl/mesh';
-import { mat4Identity, mat4Multiply, type Mat4 } from './gl/math';
-import type { ShipState } from '../sim/battle/types';
+import { HULL_CLASSES } from '../../content/ships';
+import type { HullClassId } from '../../content/ships';
+import type { GlContext } from '../core/context';
+import { createProgram, type GlProgram } from '../core/shader';
+import { RING_FS, RING_VS, SHIP_FS, SHIP_VS } from '../core/shaders';
+import type { GlMesh, MeshData } from '../core/mesh';
+import { composeRigid, type Mat4 } from '../core/math';
+import { createInstancedMesh } from '../world/scene';
 
 const WOOD_LIGHT: [number, number, number] = [0.47, 0.31, 0.17];
 const WOOD_DARK: [number, number, number] = [0.16, 0.105, 0.07];
@@ -27,21 +29,22 @@ type VertFn = (
   color: [number, number, number],
   stripe?: number,
   kind?: number,
+  uv?: [number, number],
 ) => number;
 
 const cache = new Map<HullClassId, ShipMesh>();
 
-export function getShipMesh(gl: GlHandle, hullClass: HullClassId): ShipMesh {
+export function getShipMesh(gl: GlContext, hullClass: HullClassId): ShipMesh {
   const hit = cache.get(hullClass);
   if (hit) return hit;
-  const built = createMesh(gl, buildShipMeshData(hullClass));
+  const built = createInstancedMesh(gl, buildShipMeshData(hullClass));
   const entry = { mesh: built, length: HULL_CLASSES[hullClass].length };
   cache.set(hullClass, entry);
   return entry;
 }
 
-export function disposeShipMeshes(gl: GlHandle): void {
-  for (const entry of cache.values()) entry.mesh.dispose(gl);
+export function disposeShipMeshes(gl: GlContext): void {
+  for (const entry of cache.values()) entry.mesh.dispose(gl.gl);
   cache.clear();
 }
 
@@ -67,11 +70,12 @@ export function buildShipMeshData(hullClass: HullClassId): MeshData {
     color: [number, number, number],
     stripe = 0,
     kind = 0,
+    uv: [number, number] = [0, 0],
   ) => {
     data.positions.push(x, y, z);
     data.normals.push(0, 1, 0);
     data.colors.push(color[0], color[1], color[2], stripe);
-    data.binds.push(0, 0);
+    data.binds.push(uv[0], uv[1]);
     data.kinds.push(kind);
     return data.positions.length / 3 - 1;
   };
@@ -102,16 +106,18 @@ export function buildShipMeshData(hullClass: HullClassId): MeshData {
     const yDeck = D * 0.05 + deckRaise * D * 0.35;
     const stripe = t > 0.14 && t < 0.9 ? 1 : 0;
 
-    const v0 = vert(x, -D, 0, hullColor(i, t, -D));
-    const v1 = vert(x, -D * 0.5, bw * 0.55, hullColor(i, t, -D * 0.5));
-    const v2 = vert(x, -D * 0.26, bw, hullColor(i, t, -D * 0.26), stripe);
-    const v3 = vert(x, -D * 0.12, bw * 0.98, hullColor(i, t, -D * 0.12), stripe);
-    const v4 = vert(x, yDeck, bw * 0.9, DECK);
-    const v5 = vert(x, yDeck, -bw * 0.9, DECK);
-    const v6 = vert(x, -D * 0.12, -bw * 0.98, hullColor(i, t, -D * 0.12), stripe);
-    const v7 = vert(x, -D * 0.26, -bw, hullColor(i, t, -D * 0.26), stripe);
-    const v8 = vert(x, -D * 0.5, -bw * 0.55, hullColor(i, t, -D * 0.5));
-    const v9 = vert(x, -D, 0, hullColor(i, t, -D));
+    const uvL = (x + L / 2) / L;
+    const uvV = (y: number) => (y + D) / (2 * D);
+    const v0 = vert(x, -D, 0, hullColor(i, t, -D), 0, 0, [uvL, uvV(-D)]);
+    const v1 = vert(x, -D * 0.5, bw * 0.55, hullColor(i, t, -D * 0.5), 0, 0, [uvL, uvV(-D * 0.5)]);
+    const v2 = vert(x, -D * 0.26, bw, hullColor(i, t, -D * 0.26), stripe, 0, [uvL, uvV(-D * 0.26)]);
+    const v3 = vert(x, -D * 0.12, bw * 0.98, hullColor(i, t, -D * 0.12), stripe, 0, [uvL, uvV(-D * 0.12)]);
+    const v4 = vert(x, yDeck, bw * 0.9, DECK, 0, 0, [uvL, uvV(yDeck)]);
+    const v5 = vert(x, yDeck, -bw * 0.9, DECK, 0, 0, [uvL, uvV(yDeck)]);
+    const v6 = vert(x, -D * 0.12, -bw * 0.98, hullColor(i, t, -D * 0.12), stripe, 0, [uvL, uvV(-D * 0.12)]);
+    const v7 = vert(x, -D * 0.26, -bw, hullColor(i, t, -D * 0.26), stripe, 0, [uvL, uvV(-D * 0.26)]);
+    const v8 = vert(x, -D * 0.5, -bw * 0.55, hullColor(i, t, -D * 0.5), 0, 0, [uvL, uvV(-D * 0.5)]);
+    const v9 = vert(x, -D, 0, hullColor(i, t, -D), 0, 0, [uvL, uvV(-D)]);
     void v0;
     void v1;
     void v2;
@@ -162,7 +168,7 @@ export function buildShipMeshData(hullClass: HullClassId): MeshData {
     const yDeck = D * 0.05 + (t > 0.86 ? ((t - 0.86) / 0.14) * D * 0.35 : 0);
     const row: number[] = [];
     for (let s = -1; s <= 1; s += 2) {
-      row.push(vert(x, yDeck, s * b * 0.92, DECK));
+      row.push(vert(x, yDeck, s * b * 0.92, DECK, 0, 0, [(x + L / 2) / L, 0.5]));
     }
     dRow.push(...row);
   }
@@ -217,7 +223,7 @@ function addMast(
         const v = row / (g - 1);
         const px = x + u * sailW * 0.5;
         const py = yBot + (1 - v) * (yTop - yBot);
-        const idx = vert(px, py, 0, SAIL, 0, 1);
+        const idx = vert(px, py, 0, SAIL, 0, 1, [u, v]);
         data.binds[idx * 2] = u;
         data.binds[idx * 2 + 1] = v;
       }
@@ -321,104 +327,59 @@ export interface ShipPose {
   scale?: number;
 }
 
-const SCRATCH_A = mat4Identity();
-const SCRATCH_B = mat4Identity();
-
-function rotX(out: Mat4, a: number): Mat4 {
-  mat4Identity(out);
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  out[5] = c;
-  out[6] = s;
-  out[9] = -s;
-  out[10] = c;
-  return out;
-}
-
-function rotY(out: Mat4, a: number): Mat4 {
-  mat4Identity(out);
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  out[0] = c;
-  out[2] = -s;
-  out[8] = s;
-  out[10] = c;
-  return out;
-}
-
-function rotZ(out: Mat4, a: number): Mat4 {
-  mat4Identity(out);
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  out[0] = c;
-  out[1] = s;
-  out[4] = -s;
-  out[5] = c;
-  return out;
-}
-
 /**
- * Model matrix for a ship pose: roll (about bow axis) → pitch (about beam
- * axis) → yaw (about world up). Verified: yaw keeps the hull upright.
+ * Rigid ship pose via the engine's composeRigid (yaw/pitch/roll about Y/Z/X).
  */
 export function shipModel(out: Mat4, pose: ShipPose): Mat4 {
-  const s = pose.scale ?? 1;
-  rotX(SCRATCH_A, pose.roll);
-  rotZ(SCRATCH_B, pose.pitch);
-  mat4Multiply(SCRATCH_A, SCRATCH_B, SCRATCH_A);
-  rotY(SCRATCH_B, pose.yaw);
-  mat4Multiply(out, SCRATCH_B, SCRATCH_A);
-  for (let i = 0; i < 12; i++) out[i] *= s;
-  out[12] = pose.x;
-  out[13] = pose.y;
-  out[14] = pose.z;
-  out[15] = 1;
-  return out;
+  return composeRigid(out, pose.x, pose.y, pose.z, pose.yaw, pose.pitch, pose.roll, pose.scale ?? 1);
 }
 
-/** A pristine ShipState for previews (select screens, shipyard later). */
-export function makePreviewShip(
-  id: string,
-  team: 0 | 1,
-  name: string,
-  hullClass: HullClassId,
-  heading: number,
-): ShipState {
-  const cls = HULL_CLASSES[hullClass];
-  return {
-    id,
-    team,
-    name,
-    hullClass,
-    captain: { skill: 60, bravery: 60, focus: 60, determination: 60 },
-    x: 0,
-    y: 0,
-    heading,
-    vx: 0,
-    vy: 0,
-    speed: 0,
-    sailState: 1,
-    rudder: 0,
-    hull: cls.maxHull,
-    maxHull: cls.maxHull,
-    sails: cls.maxSails,
-    maxSails: cls.maxSails,
-    crew: cls.maxCrew,
-    maxCrew: cls.maxCrew,
-    morale: cls.maxMorale,
-    maxMorale: cls.maxMorale,
-    onFire: false,
-    fireT: 0,
-    reload: 0,
-    intention: 'HOLD',
-    targetId: null,
-    grappledWith: null,
-    boardLeader: false,
-    boardTicks: 0,
-    sunk: false,
-    struck: false,
-    lastSternAim: false,
-    aiT: 0,
-    aimHeading: heading,
-  };
+
+let shipProgram: GlProgram | null = null;
+let ringProgram: GlProgram | null = null;
+let ringMesh: GlMesh | null = null;
+
+export function getShipProgram(gl: GlContext): GlProgram {
+  if (!shipProgram) shipProgram = createProgram(gl.gl, SHIP_VS, SHIP_FS);
+  return shipProgram;
+}
+
+export function getRingProgram(gl: GlContext): GlProgram {
+  if (!ringProgram) ringProgram = createProgram(gl.gl, RING_VS, RING_FS);
+  return ringProgram;
+}
+
+/** Flat selection ring (scale = ship length * 0.72). */
+export function getRingMesh(gl: GlContext): GlMesh {
+  if (ringMesh) return ringMesh;
+  const segments = 28;
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    positions.push(Math.cos(a), 0.04, Math.sin(a));
+    colors.push(0.94, 0.79, 0.43, 0);
+    positions.push(Math.cos(a) * 0.92, 0.04, Math.sin(a) * 0.92);
+    colors.push(0.94, 0.79, 0.43, 0);
+  }
+  for (let i = 0; i < segments; i++) {
+    const n = (i + 1) % segments;
+    indices.push(i * 2, n * 2, i * 2 + 1, n * 2, n * 2 + 1, i * 2 + 1);
+  }
+  ringMesh = createInstancedMesh(gl, { positions, normals: [], colors, binds: [], kinds: [], indices });
+  return ringMesh;
+}
+
+/** On context restore, every cached GL object is stale — drop them. */
+export function resetGpuCaches(): void {
+  cache.clear();
+  shipProgram = null;
+  ringProgram = null;
+  ringMesh = null;
+}
+
+/** Register the cache-reset hook once per context (boot-time). */
+export function registerRestoreHook(gl: GlContext): void {
+  gl.onRestore(resetGpuCaches);
 }

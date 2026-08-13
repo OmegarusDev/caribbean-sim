@@ -197,3 +197,123 @@ export function hexToRgb(hex: string): Vec3 {
   const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
+
+/** Gribb–Hartmann frustum planes extracted from a view-projection matrix. */
+export interface Frustum {
+  left: Vec4;
+  right: Vec4;
+  bottom: Vec4;
+  top: Vec4;
+  near: Vec4;
+  far: Vec4;
+}
+
+export type Vec4 = [number, number, number, number];
+
+export function extractFrustum(m: Mat4): Frustum {
+  const row = (r: number): Vec4 => [m[r * 4]!, m[r * 4 + 1]!, m[r * 4 + 2]!, m[r * 4 + 3]!];
+  const [m0, m1, m2, m3] = [row(0), row(1), row(2), row(3)];
+  const combine = (a: Vec4, b: Vec4, sign: number): Vec4 => [
+    a[0]! + sign * b[0]!,
+    a[1]! + sign * b[1]!,
+    a[2]! + sign * b[2]!,
+    a[3]! + sign * b[3]!,
+  ];
+  const norm = (p: Vec4): Vec4 => {
+    const l = Math.hypot(p[0]!, p[1]!, p[2]!) || 1;
+    return [p[0]! / l, p[1]! / l, p[2]! / l, p[3]! / l];
+  };
+  return {
+    left: norm(combine(m3, m0, 1)),
+    right: norm(combine(m3, m0, -1)),
+    bottom: norm(combine(m3, m1, 1)),
+    top: norm(combine(m3, m1, -1)),
+    near: norm(combine(m3, m2, 1)),
+    far: norm(combine(m3, m2, -1)),
+  };
+}
+
+const PLANE_ORDER = ['left', 'right', 'bottom', 'top', 'near', 'far'] as const;
+
+/** True if the sphere (center, radius) is inside or intersecting the frustum. */
+export function frustumSphereVisible(f: Frustum, cx: number, cy: number, cz: number, radius: number): boolean {
+  for (const key of PLANE_ORDER) {
+    const p = f[key];
+    const d = p[0]! * cx + p[1]! * cy + p[2]! * cz + p[3]!;
+    if (d < -radius) return false;
+  }
+  return true;
+}
+
+/** True if a point is inside (or on) the frustum. */
+export function frustumPointVisible(f: Frustum, x: number, y: number, z: number): boolean {
+  for (const key of PLANE_ORDER) {
+    const p = f[key];
+    if (p[0]! * x + p[1]! * y + p[2]! * z + p[3]! < 0) return false;
+  }
+  return true;
+}
+
+const POSE_A = mat4Identity();
+const POSE_B = mat4Identity();
+
+function rotX(out: Mat4, a: number): Mat4 {
+  mat4Identity(out);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  out[5] = c;
+  out[6] = s;
+  out[9] = -s;
+  out[10] = c;
+  return out;
+}
+
+function rotY(out: Mat4, a: number): Mat4 {
+  mat4Identity(out);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  out[0] = c;
+  out[2] = -s;
+  out[8] = s;
+  out[10] = c;
+  return out;
+}
+
+function rotZ(out: Mat4, a: number): Mat4 {
+  mat4Identity(out);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  out[0] = c;
+  out[1] = s;
+  out[4] = -s;
+  out[5] = c;
+  return out;
+}
+
+/**
+ * Generic rigid transform: translate(pos) · rotY(yaw) · rotZ(pitch) · rotX(roll) · scale.
+ * Roll about the local X (longitudinal), pitch about Z (lateral), yaw about Y (up).
+ * Verified by tests: the Y axis stays upright at any yaw.
+ */
+export function composeRigid(
+  out: Mat4,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+  pitch: number,
+  roll: number,
+  scale = 1,
+): Mat4 {
+  rotX(POSE_A, roll);
+  rotZ(POSE_B, pitch);
+  mat4Multiply(POSE_A, POSE_B, POSE_A);
+  rotY(POSE_B, yaw);
+  mat4Multiply(out, POSE_B, POSE_A);
+  for (let i = 0; i < 12; i++) out[i] *= scale;
+  out[12] = x;
+  out[13] = y;
+  out[14] = z;
+  out[15] = 1;
+  return out;
+}

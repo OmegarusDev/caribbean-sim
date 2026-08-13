@@ -9,8 +9,8 @@ import { createFreshGame } from '../game/state';
 import { btn, clear, el } from '../shell/ui/dom';
 import { confirmModal, panelModal } from '../shell/ui/modal';
 import { toast } from '../shell/ui/toast';
-import { SeaScene } from '../gfx/scene3d';
-import type { GlContext } from '../gfx/gl/context';
+import { WorldScene } from '../gfx/world/scene';
+import type { GlContext } from '../gfx/core/context';
 import { SkirmishScene } from './skirmish';
 
 export interface TitleDeps {
@@ -26,7 +26,7 @@ export const GAME_VERSION = 'v0.0.1';
 
 export class TitleScene implements Scene {
   private time = 0;
-  private scene3d: SeaScene | null = null;
+  private scene: WorldScene | null = null;
 
   constructor(private readonly deps: TitleDeps) {}
 
@@ -40,25 +40,26 @@ export class TitleScene implements Scene {
 
   update(dt: number): void {
     this.time += dt;
-    if (this.scene3d) {
-      this.scene3d.camera.smoothYaw += dt * 0.045;
-      this.scene3d.camera.update([], dt, this.deps.input, null);
-      this.scene3d.setParticles([]);
+    if (this.scene) {
+      this.scene.camera.smoothYaw += dt * 0.045;
+      this.scene.controller.update([], dt, this.deps.input, null);
+      this.scene.setParticles(null);
     }
   }
 
   render(w: number, h: number): void {
     const gl = this.deps.gl;
     if (!gl || gl.lost) return;
-    if (!this.scene3d) {
-      this.scene3d = new SeaScene(gl);
-      this.scene3d.setWind(0.9, 0.8);
-      this.scene3d.camera.smoothDolly = 820;
-      this.scene3d.camera.smoothPitch = 0.5;
-      this.scene3d.camera.smoothYaw = 0;
+    if (!this.scene) {
+      this.scene = new WorldScene(gl);
+      this.scene.setWind(0.9);
+      this.scene.camera.smoothDolly = 820;
+      this.scene.camera.smoothPitch = 0.5;
+      this.scene.camera.smoothYaw = 0;
+      this.scene.setEntities([]);
     }
-    this.scene3d.camera.resize(w, h);
-    this.scene3d.render(this.time);
+    this.scene.camera.resize(w, h);
+    this.scene.render(this.time);
   }
 
   handleBack(): boolean {

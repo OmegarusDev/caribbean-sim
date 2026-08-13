@@ -1,10 +1,12 @@
-/** Procedural ocean — a camera-following wave grid, displaced in the vertex shader. */
-import type { GlContext } from './gl/context';
-import type { GlProgram } from './gl/shader';
-import { createProgram } from './gl/shader';
-import { WATER_FS, WATER_VS } from './gl/shaders';
-import { createMesh, type GlMesh } from './gl/mesh';
-import type { Camera3d } from './camera3d';
+/** Procedural ocean — camera-following wave grid, vertex-displaced. */
+import type { GlContext } from '../core/context';
+import type { GlProgram } from '../core/shader';
+import { createProgram } from '../core/shader';
+import { WATER_FS, WATER_VS } from '../core/shaders';
+import { createMesh, type GlMesh } from '../core/mesh';
+import { getProceduralTexture, hashNoise } from '../core/texture';
+import type { Camera3d } from '../core/camera';
+import type { Atmosphere } from './atmosphere';
 
 const GRID = 52;
 const HALF = 2400;
@@ -42,7 +44,7 @@ export class Water {
     });
   }
 
-  draw(cam: Camera3d, time: number, sunDir: Float32Array): void {
+  draw(cam: Camera3d, atm: Atmosphere, time: number): void {
     const gl = this.gl.gl;
     this.program.use();
     gl.uniformMatrix4fv(this.program.uniform('u_viewProj'), false, cam.getViewProj());
@@ -52,8 +54,23 @@ export class Water {
     gl.uniform1f(this.program.uniform('u_time'), time);
     const eye = cam.eyeWorld();
     gl.uniform3f(this.program.uniform('u_eye'), eye[0], eye[1], eye[2]);
-    gl.uniform3f(this.program.uniform('u_sunDir'), sunDir[0], sunDir[1], sunDir[2]);
-    gl.uniform3f(this.program.uniform('u_horizon'), 0.24, 0.38, 0.48);
+    gl.uniform3f(this.program.uniform('u_sunDir'), atm.sunDir[0], atm.sunDir[1], atm.sunDir[2]);
+    gl.uniform3f(this.program.uniform('u_horizon'), atm.skyHorizon[0], atm.skyHorizon[1], atm.skyHorizon[2]);
+    gl.uniform3f(this.program.uniform('u_deep'), atm.waterDeep[0], atm.waterDeep[1], atm.waterDeep[2]);
+    gl.uniform3f(this.program.uniform('u_mid'), atm.waterMid[0], atm.waterMid[1], atm.waterMid[2]);
+    const tex = getProceduralTexture(this.gl, 'noise:water', {
+      size: 128,
+      repeat: true,
+      pixel: (x, y, _size) => {
+        const n = hashNoise(x * 3.7, y * 3.7, 23);
+        return [Math.round(255 * n), Math.round(255 * n), Math.round(255 * n), 255];
+      },
+    });
+    if (tex) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(this.program.uniform('u_tex'), 0);
+    }
     this.mesh.draw(gl, this.program);
   }
 

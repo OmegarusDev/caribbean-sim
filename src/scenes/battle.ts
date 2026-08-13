@@ -12,13 +12,24 @@ import { BATTLE_TICK } from '../sim/battle/types';
 import type { BattleConfig, BattleResult, ShipState } from '../sim/battle/types';
 import { Battle } from '../sim/battle/battle';
 import { SeededRng } from '../sim/rng';
+import type { Camera3d } from '../gfx/core/camera';
+import { projectToNdc, vec3 } from '../gfx/core/math';
 import type { SimEvent } from '../sim/events';
 import { SpectacleMeter } from '../director/spectacle';
 import { eventLine } from '../director/story';
-import { FxSystem } from '../gfx/fx';
-import { SeaScene, toShipView } from '../gfx/scene3d';
-import type { GlContext } from '../gfx/gl/context';
-import { HULL_CLASSES } from '../content/ships';
+import { FxSystem } from '../gfx/core/fx';
+import { WorldScene } from '../gfx/world/scene';
+import {
+  getRingMesh,
+  getRingProgram,
+  getShipMesh,
+  getShipProgram,
+  resetGpuCaches,
+} from '../gfx/present/shipMesh';
+import { ringEntity, shipToEntity } from '../gfx/present/shipViews';
+import type { WorldEntity } from '../gfx/world/entities';
+import type { GlContext } from '../gfx/core/context';
+import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
 import { el } from '../shell/ui/dom';
 
 export interface BattleDeps {
@@ -60,7 +71,7 @@ export class BattleScene implements Scene {
   private captionLife = 0;
   private story: string[] = [];
   private spectacle = new SpectacleMeter();
-  private scene3d: SeaScene | null = null;
+  private scene: WorldScene | null = null;
   private fx: FxSystem;
   private sinkTimers = new Map<string, number>();
   private result: BattleResult | null = null;
@@ -102,8 +113,8 @@ export class BattleScene implements Scene {
   exit(): void {
     if (this.root) this.root.remove();
     this.root = null;
-    this.scene3d?.dispose();
-    this.scene3d = null;
+    this.scene?.dispose();
+    this.scene = null;
   }
 
   handleBack(): boolean {
@@ -169,30 +180,53 @@ export class BattleScene implements Scene {
     this.lastH = h;
     const gl = this.deps.gl;
     if (!gl || gl.lost) return;
-    if (!this.scene3d) {
-      this.scene3d = new SeaScene(gl);
-      this.scene3d.setWind(this.battle.config.windDir, this.battle.config.windStrength);
-      this.scene3d.camera.setInterest(this.firstShipX, this.firstShipY, 2);
-      this.scene3d.camera.targetX = this.firstShipX;
-      this.scene3d.camera.targetZ = this.firstShipY;
-      this.scene3d.camera.dolly = 760;
+    if (!this.scene) {
+      this.scene = new WorldScene(gl);
+      this.scene.setWind(this.battle.config.windDir);
+      this.scene.onRebuild = () => {
+        resetGpuCaches();
+        this.registerShips(this.scene!);
+      };
+      this.scene.camera.setInterest(this.firstShipX, this.firstShipY, 2);
+      this.scene.camera.targetX = this.firstShipX;
+      this.scene.camera.targetZ = this.firstShipY;
+      this.scene.camera.dolly = 760;
+      this.registerShips(this.scene);
     }
-    const scene = this.scene3d;
+    const scene = this.scene;
     scene.camera.resize(w, h);
-    scene.camera.update(
+    scene.controller.update(
       this.battle.ships.filter((s) => !s.sunk).map((s) => ({ x: s.x, y: s.y })),
       this.lastDt,
       this.deps.input,
       this.selectedPoint(),
     );
-    scene.smoothPoses(this.lastDt, this.time);
-    const views = this.battle.ships.map((s) => toShipView(s, this.selectedId === s.id));
-    for (const v of views) {
-      v.sinkT = this.sinkTimers.get(v.id) ?? 0;
+    scene.smoothPoses(this.lastDt);
+    const entities: WorldEntity[] = [];
+    for (const ship of this.battle.ships) {
+      entities.push(
+        shipToEntity(ship, {
+          selected: this.selectedId === ship.id,
+          time: this.time,
+          windDir: this.battle.config.windDir,
+          sinkT: this.sinkTimers.get(ship.id) ?? 0,
+        }),
+      );
     }
-    scene.setShips(views);
-    scene.setParticles(this.fx.particles);
+    const sel = this.selectedId ? this.battle.ships.find((s) => s.id === this.selectedId) : null;
+    if (sel && !sel.sunk) entities.push(ringEntity(sel));
+    scene.setEntities(entities);
+    scene.setParticles(this.fx.pool);
     scene.render(this.time);
+  }
+
+  private registerShips(scene: WorldScene): void {
+    const gl = this.deps.gl;
+    if (!gl) return;
+    for (const cls of HULL_CLASS_LIST) {
+      scene.registerMesh(`ship:${cls}`, getShipMesh(gl, cls).mesh, getShipProgram(gl));
+    }
+    scene.registerMesh('ring', getRingMesh(gl), getRingProgram(gl), true);
   }
 
   private lastDt = 1 / 60;
@@ -290,7 +324,7 @@ export class BattleScene implements Scene {
 
       const actor = this.battle.ships.find((s) => s.id === ev.actor);
       const target = ev.target ? this.battle.ships.find((s) => s.id === ev.target) : undefined;
-      const cam = this.scene3d?.camera;
+      const cam = this.scene?.camera;
       if (!cam) continue;
       switch (ev.kind) {
         case 'broadside':
@@ -354,9 +388,16 @@ export class BattleScene implements Scene {
 
   private handleClick(): void {
     const input = this.deps.input;
-    if (!input.pointer.clicked || !this.scene3d) return;
-    if (this.scene3d.camera.consumeDragJustEnded()) return;
-    const idx = this.scene3d.pickShip(input.pointer.x, input.pointer.y, this.lastW, this.lastH);
+    if (!input.pointer.clicked || !this.scene) return;
+    if (this.scene.controller.consumeDragJustEnded()) return;
+    const idx = pickShipScreen(
+      this.scene.camera,
+      this.battle.ships,
+      input.pointer.x,
+      input.pointer.y,
+      this.lastW,
+      this.lastH,
+    );
     const id = idx >= 0 ? this.battle.ships[idx]?.id ?? null : null;
     if (id !== null && this.selectedId === id) this.selectedId = null;
     else this.selectedId = id;
@@ -476,7 +517,7 @@ export class BattleScene implements Scene {
       if (gl && !gl.lost) {
         const err = gl.gl.getError();
         const renderer = String(gl.gl.getParameter(gl.gl.RENDERER) ?? '?');
-        const cam = this.scene3d?.camera;
+        const cam = this.scene?.camera;
         info = `${renderer} · err:${err} · ${this.lastW}×${this.lastH} · dolly:${cam ? Math.round(cam.dolly) : 0} · ships:${this.battle.ships.filter((s) => !s.sunk).length}`;
       } else if (gl?.lost) {
         info = 'CONTEXT LOST';
@@ -549,3 +590,32 @@ export class BattleScene implements Scene {
     });
   }
 }
+
+/** Nearest ship to a screen point, via projection (picking). */
+function pickShipScreen(
+  cam: Camera3d,
+  ships: ShipState[],
+  sx: number,
+  sy: number,
+  cssW: number,
+  cssH: number,
+  radius = 34,
+): number {
+  let best = -1;
+  let bestD = radius * radius;
+  for (let i = 0; i < ships.length; i++) {
+    const s = ships[i]!;
+    if (s.sunk) continue;
+    projectToNdc(ndcScratch, vec3(s.x, 6, s.y), cam.getViewProj());
+    const px = (ndcScratch[0]! + 1) * 0.5 * cssW;
+    const py = (1 - ndcScratch[1]!) * 0.5 * cssH;
+    const d = (px - sx) * (px - sx) + (py - sy) * (py - sy);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+const ndcScratch = vec3();

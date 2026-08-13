@@ -3,7 +3,7 @@
  * The stage canvas is sized to its CSS box × DPR and passed to the GL
  * context — one render path, WebGL only.
  */
-import type { GlContext } from '../gfx/gl/context';
+import type { GlContext } from '../gfx/core/context';
 
 export interface AppShell {
   app: HTMLElement;

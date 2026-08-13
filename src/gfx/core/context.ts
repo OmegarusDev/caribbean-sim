@@ -1,4 +1,11 @@
-/** WebGL2 context wrapper — the stage canvas, sized to its CSS box × DPR. */
+/**
+ * WebGL2 context — the stage canvas, sized to CSS box × DPR.
+ *
+ * Robustness contract:
+ *  - Context loss (mobile browsers recycle contexts on backgrounding) is
+ *    handled: consumers register rebuilders; on restore every GL resource
+ *    is recreated and the scene continues. Nothing is ever left dangling.
+ */
 
 export interface GlContext {
   gl: WebGL2RenderingContext;
@@ -8,6 +15,8 @@ export interface GlContext {
   dpr: number;
   lost: boolean;
   resize(cssW: number, cssH: number, dprIn?: number): void;
+  /** Register a function called once when the context is restored. */
+  onRestore(fn: () => void): void;
   dispose(): void;
 }
 
@@ -35,6 +44,8 @@ export function createGl(canvas: HTMLCanvasElement): GlContext | null {
   canvas.style.height = '100%';
   canvas.style.touchAction = 'none';
 
+  const restoreFns: Array<() => void> = [];
+
   const ctx: GlContext = {
     gl,
     canvas,
@@ -57,6 +68,9 @@ export function createGl(canvas: HTMLCanvasElement): GlContext | null {
       ctx.cssH = cssH;
       ctx.dpr = dpr;
     },
+    onRestore(fn) {
+      restoreFns.push(fn);
+    },
     dispose() {
       canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('webglcontextrestored', onRestored);
@@ -66,18 +80,40 @@ export function createGl(canvas: HTMLCanvasElement): GlContext | null {
   const onLost = (e: Event) => {
     e.preventDefault();
     ctx.lost = true;
-    console.warn('[caribbean] WebGL context lost');
+    console.warn('[caribbean] WebGL context lost — pausing render');
   };
   const onRestored = () => {
     ctx.lost = false;
-    console.info('[caribbean] WebGL context restored — reload recommended');
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.disable(gl.CULL_FACE);
+    for (const fn of restoreFns) {
+      try {
+        fn();
+      } catch (err) {
+        console.error('[caribbean] context restore step failed', err);
+      }
+    }
+    console.info('[caribbean] WebGL context restored');
   };
   canvas.addEventListener('webglcontextlost', onLost, false);
   canvas.addEventListener('webglcontextrestored', onRestored, false);
 
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
+  // Flat XZ-world meshes are cull-sensitive; everything reads double-sided.
   gl.disable(gl.CULL_FACE);
 
   return ctx;
+}
+
+/** Dispose a list of GL resources safely (used on context loss paths). */
+export function disposeAll(gl: GlHandle, items: Array<{ dispose(gl: GlHandle): void }>): void {
+  for (const item of items) {
+    try {
+      item.dispose(gl);
+    } catch {
+      // already disposed or lost — safe to ignore
+    }
+  }
 }

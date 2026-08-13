@@ -7,9 +7,11 @@ import type { SceneManager } from '../shell/scenes';
 import type { Input } from '../shell/input';
 import type { Synth } from '../shell/audio';
 import { btn, clear, el, segment } from '../shell/ui/dom';
-import { SeaScene, toShipView } from '../gfx/scene3d';
-import { makePreviewShip } from '../gfx/ship3d';
-import type { GlContext } from '../gfx/gl/context';
+import { WorldScene } from '../gfx/world/scene';
+import { getShipMesh, getShipProgram, resetGpuCaches } from '../gfx/present/shipMesh';
+import { makePreviewShip, shipToEntity } from '../gfx/present/shipViews';
+import type { WorldEntity } from '../gfx/world/entities';
+import type { GlContext } from '../gfx/core/context';
 import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
 import type { HullClassId } from '../content/ships';
 import { SKIRMISH_PRESETS } from '../content/skirmish';
@@ -32,7 +34,7 @@ export class SkirmishScene implements Scene {
   private playerClass: HullClassId = 'sloop';
   private enemyClass: HullClassId = 'sloop';
   private time = 0;
-  private scene3d: SeaScene | null = null;
+  private scene: WorldScene | null = null;
   private previewBuilt = false;
   private root: HTMLElement | null = null;
   private duelView: HTMLElement | null = null;
@@ -54,8 +56,8 @@ export class SkirmishScene implements Scene {
 
   update(dt: number): void {
     this.time += dt;
-    if (this.scene3d) {
-      this.scene3d.camera.update(
+    if (this.scene) {
+      this.scene.controller.update(
         [
           { x: -520, y: 30 },
           { x: 520, y: -30 },
@@ -64,31 +66,43 @@ export class SkirmishScene implements Scene {
         this.deps.input,
         null,
       );
-      this.scene3d.smoothPoses(dt, this.time);
-      this.scene3d.setParticles([]);
+      this.scene.smoothPoses(dt);
+      this.scene.setParticles(null);
     }
   }
 
   render(w: number, h: number): void {
     const gl = this.deps.gl;
     if (!gl || gl.lost) return;
-    if (!this.scene3d) {
-      this.scene3d = new SeaScene(gl);
-      this.scene3d.setWind(0.6, 0.8);
-      this.scene3d.camera.smoothDolly = 900;
-      this.scene3d.camera.smoothPitch = 0.48;
-      this.scene3d.camera.smoothYaw = 0;
+    if (!this.scene) {
+      this.scene = new WorldScene(gl);
+      this.scene.setWind(0.6);
+      this.scene.onRebuild = () => {
+        resetGpuCaches();
+        this.registerShips(this.scene!);
+      };
+      this.scene.camera.smoothDolly = 900;
+      this.scene.camera.smoothPitch = 0.48;
+      this.scene.camera.smoothYaw = 0;
+      this.registerShips(this.scene);
     }
     if (!this.previewBuilt) {
-      this.scene3d.setShips(this.previewViews());
+      this.scene.setEntities(this.previewEntities());
       this.previewBuilt = true;
     }
-    this.scene3d.camera.resize(w, h);
-    this.scene3d.render(this.time);
+    this.scene.camera.resize(w, h);
+    this.scene.render(this.time);
   }
 
-  private previewViews() {
-    if (!this.scene3d) return [];
+  private registerShips(scene: WorldScene): void {
+    const gl = this.deps.gl;
+    if (!gl) return;
+    for (const cls of HULL_CLASS_LIST) {
+      scene.registerMesh(`ship:${cls}`, getShipMesh(gl, cls).mesh, getShipProgram(gl));
+    }
+  }
+
+  private previewEntities(): WorldEntity[] {
     const player = makePreviewShip(
       'p',
       0,
@@ -107,7 +121,10 @@ export class SkirmishScene implements Scene {
     player.y = 30;
     enemy.x = 520;
     enemy.y = -30;
-    return [toShipView(player, true), toShipView(enemy, false)];
+    return [
+      shipToEntity(player, { selected: true, time: this.time, windDir: 0.6 }),
+      shipToEntity(enemy, { selected: false, time: this.time, windDir: 0.6 }),
+    ];
   }
 
   handleBack(): boolean {

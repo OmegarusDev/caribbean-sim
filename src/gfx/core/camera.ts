@@ -1,33 +1,30 @@
 /**
- * 3D director camera — perspective, orbits the fleet, zooms to spread,
- * hands back after user silence. Sim plane (x, y) maps to world (x, z).
+ * Camera3d — pure view math. No input, no scene knowledge: given a target,
+ * dolly, pitch and yaw it produces view/projection matrices, frustum planes,
+ * and screen↔world unprojection. Input handling lives in CameraController.
  */
-import type { Input } from '../shell/input';
 import {
+  extractFrustum,
   mat4Identity,
   mat4Invert,
   mat4LookAt,
   mat4Multiply,
   mat4Perspective,
   transformMat4,
+  type Frustum,
   type Mat4,
   type Vec3,
   vec3,
-} from './gl/math';
+} from './math';
 
 export type CamMode = 'director' | 'manual' | 'focus';
 
-const DOLLY_MIN = 260;
-const DOLLY_MAX = 1500;
-const PITCH_MIN = 0.32;
-const PITCH_MAX = 1.15;
 /** Vertical FOV (rad). A floor on the horizontal FOV keeps portrait phones
  * from collapsing to a ~20° sliver (Lanista's arena-camera lesson). */
 const VFOV = (38 * Math.PI) / 180;
 const HFOV_MIN = (40 * Math.PI) / 180;
 const NEAR = 6;
 const FAR = 9000;
-const USER_HOLD_MS = 3000;
 
 export class Camera3d {
   mode: CamMode = 'director';
@@ -42,23 +39,14 @@ export class Camera3d {
   yaw = 0;
   smoothYaw = 0;
 
-  focusId: string | null = null;
-  private userHold = 0;
   private interestX: number | null = null;
   private interestZ: number | null = null;
   private interestLife = 0;
-  private dragging = false;
-  private dragMoved = false;
-  private dragJustEnded = false;
-  private dragSx = 0;
-  private dragSy = 0;
-  private pan0X = 0;
-  private pan0Z = 0;
   private shakeAmp = 0;
   private shakeSeed = 1;
-  private aspect = 16 / 9;
-  private cssW = 800;
-  private cssH = 600;
+  aspect = 16 / 9;
+  cssW = 800;
+  cssH = 600;
   private ready = false;
   private vfovHalf = VFOV / 2;
 
@@ -69,6 +57,11 @@ export class Camera3d {
   private readonly eye = vec3(0, 640, 0);
   private readonly center = vec3(0, 0, 0);
   private readonly up = vec3(0, 1, 0);
+  private frustum: Frustum;
+
+  constructor() {
+    this.frustum = extractFrustum(mat4Identity());
+  }
 
   resize(cssW: number, cssH: number): void {
     this.cssW = Math.max(1, cssW);
@@ -84,38 +77,69 @@ export class Camera3d {
     this.ready = true;
   }
 
-  /** Effective vertical FOV (rad) — portrait-safe. */
-  getFovY(): number {
-    return this.vfovHalf * 2;
-  }
-
   isReady(): boolean {
     return this.ready;
   }
 
-  update(
+  getFovY(): number {
+    return this.vfovHalf * 2;
+  }
+
+  getViewProj(): Mat4 {
+    return this.viewProj;
+  }
+
+  getInvViewProj(): Mat4 {
+    return this.invViewProj;
+  }
+
+  /** Current eye position (world). */
+  eyeWorld(): Vec3 {
+    return [this.eye[0], this.eye[1], this.eye[2]];
+  }
+
+  /** World-space frustum planes for culling. */
+  getFrustum(): Frustum {
+    return this.frustum;
+  }
+
+  setInterest(x: number, z: number, life: number): void {
+    this.interestX = x;
+    this.interestZ = z;
+    this.interestLife = life;
+  }
+
+  shake(amount: number): void {
+    this.shakeAmp = Math.max(this.shakeAmp, amount);
+  }
+
+  focusOn(x: number, z: number): void {
+    this.mode = 'focus';
+    this.smoothX = x;
+    this.smoothZ = z;
+    this.smoothDolly = Math.min(this.smoothDolly, 460);
+  }
+
+  clearFocus(): void {
+    this.mode = 'director';
+  }
+
+  /** Frames from the given points (director) — returns whether an update happened. */
+  frame(
     points: Array<{ x: number; y: number }>,
     dt: number,
-    input: Input,
     selected: { x: number; y: number } | null,
   ): void {
     if (!this.ready) return;
-
-    if (this.mode !== 'director') {
-      this.userHold += dt * 1000;
-      if (this.userHold > USER_HOLD_MS) this.mode = 'director';
-    }
-    this.handleInput(input);
 
     if (this.mode === 'director' || this.mode === 'focus') {
       const center = this.fleetCenter(points, selected);
       this.smoothX = center.x;
       this.smoothZ = center.y;
       const spread = this.fleetSpread(points);
-      // Fit the spread in the tightest view axis (portrait = horizontal).
       const constraintHalf = Math.min(this.vfovHalf, Math.tan(this.vfovHalf) * this.aspect);
-      this.smoothDolly = clamp((spread * 0.85) / (2 * Math.max(1e-3, constraintHalf)), DOLLY_MIN, DOLLY_MAX);
-      this.smoothPitch = clamp(0.42 + spread / 2600, PITCH_MIN, PITCH_MAX);
+      this.smoothDolly = clamp((spread * 0.85) / (2 * Math.max(1e-3, constraintHalf)), 260, 1500);
+      this.smoothPitch = clamp(0.42 + spread / 2600, 0.32, 1.15);
     } else if (this.interestLife > 0) {
       this.smoothX = this.interestX ?? this.smoothX;
       this.smoothZ = this.interestZ ?? this.smoothZ;
@@ -138,58 +162,6 @@ export class Camera3d {
     }
 
     this.computeMatrices();
-  }
-
-  private handleInput(input: Input): void {
-    if (input.wheelDelta !== 0) {
-      this.smoothDolly = clamp(this.smoothDolly * Math.exp(input.wheelDelta * 0.001), DOLLY_MIN, DOLLY_MAX);
-      this.touch();
-    }
-    if (input.pinchDelta !== 0) {
-      this.smoothDolly = clamp(this.smoothDolly * Math.exp(input.pinchDelta * 0.7), DOLLY_MIN, DOLLY_MAX);
-      this.touch();
-    }
-
-    const p = input.pointer;
-    const inView = p.x >= 0 && p.x <= this.cssW && p.y >= 0 && p.y <= this.cssH;
-    if (p.down && !this.dragging && inView) {
-      this.dragging = true;
-      this.dragMoved = false;
-      this.dragSx = p.x;
-      this.dragSy = p.y;
-      this.pan0X = this.targetX;
-      this.pan0Z = this.targetZ;
-    }
-    if (p.down && this.dragging) {
-      const dx = (p.x - this.dragSx) / this.cssH;
-      const dy = (p.y - this.dragSy) / this.cssH;
-      if (Math.hypot(dx, dy) > 0.01) this.dragMoved = true;
-      if (this.dragMoved) {
-        const world = this.planeDelta(dx, dy);
-        this.smoothX = this.pan0X - world.x;
-        this.smoothZ = this.pan0Z - world.z;
-        this.touch();
-      }
-    }
-    if (!p.down && this.dragging) {
-      this.dragging = false;
-      this.dragJustEnded = this.dragMoved;
-    }
-  }
-
-  /** Screen-space drag delta → world-plane delta at the target depth. */
-  private planeDelta(dxNorm: number, dyNorm: number): { x: number; z: number } {
-    const tanHalf = Math.tan(this.vfovHalf);
-    const worldPerNorm = this.dolly * tanHalf * 2;
-    return {
-      x: -dxNorm * worldPerNorm * this.aspect,
-      z: -dyNorm * worldPerNorm,
-    };
-  }
-
-  private touch(): void {
-    this.mode = 'manual';
-    this.userHold = 0;
   }
 
   private fleetCenter(
@@ -219,31 +191,10 @@ export class Camera3d {
     return max;
   }
 
-  setInterest(x: number, z: number, life: number): void {
-    this.interestX = x;
-    this.interestZ = z;
-    this.interestLife = life;
-  }
-
-  shake(amount: number): void {
-    this.shakeAmp = Math.max(this.shakeAmp, amount);
-  }
-
-  focusOn(x: number, z: number): void {
-    this.mode = 'focus';
-    this.smoothX = x;
-    this.smoothZ = z;
-    this.smoothDolly = Math.min(this.smoothDolly, 460);
-  }
-
-  clearFocus(): void {
-    this.mode = 'director';
-  }
-
-  consumeDragJustEnded(): boolean {
-    const v = this.dragJustEnded;
-    this.dragJustEnded = false;
-    return v;
+  /** Smoothly move the target toward a world point (interest/focus pull). */
+  pullTo(x: number, z: number, strength: number): void {
+    this.smoothX += (x - this.smoothX) * strength;
+    this.smoothZ += (z - this.smoothZ) * strength;
   }
 
   private computeMatrices(): void {
@@ -273,23 +224,12 @@ export class Camera3d {
     mat4Perspective(this.proj, this.vfovHalf * 2, this.aspect, NEAR, FAR);
     mat4LookAt(this.view, this.eye, this.center, this.up);
     mat4Multiply(this.viewProj, this.proj, this.view);
-    mat4Invert(this.invViewProj, this.viewProj);
+    if (mat4Invert(this.invViewProj, this.viewProj)) {
+      this.frustum = extractFrustum(this.viewProj);
+    }
   }
 
-  /** Current eye position (world). */
-  eyeWorld(): Vec3 {
-    return [this.eye[0], this.eye[1], this.eye[2]];
-  }
-
-  getViewProj(): Mat4 {
-    return this.viewProj;
-  }
-
-  getInvViewProj(): Mat4 {
-    return this.invViewProj;
-  }
-
-  /** Unproject a screen point onto the sea plane (y=0). Returns null off-plane. */
+  /** Unproject a screen point onto the sea plane (y=0). Null if off-plane. */
   worldFromScreen(sx: number, sy: number, cssW: number, cssH: number): { x: number; z: number } | null {
     const ndc = vec3((sx / cssW) * 2 - 1, 1 - (sy / cssH) * 2, -1);
     const near = transformMat4(vec3(), ndc, this.invViewProj);
@@ -302,6 +242,104 @@ export class Camera3d {
     const t = -near[1] / dy;
     if (t < 0) return null;
     return { x: near[0] + dx * t, z: near[2] + dz * t };
+  }
+}
+
+/**
+ * CameraController — input-driven framing. Owns the user's pan/zoom gestures
+ * and the director's auto-recover timer; the camera itself stays pure.
+ */
+const USER_HOLD_MS = 3000;
+
+export class CameraController {
+  private userHold = 0;
+  private dragging = false;
+  private dragMoved = false;
+  private dragJustEnded = false;
+  private dragSx = 0;
+  private dragSy = 0;
+  private pan0X = 0;
+  private pan0Z = 0;
+
+  constructor(private readonly cam: Camera3d) {}
+
+  update(
+    points: Array<{ x: number; y: number }>,
+    dt: number,
+    input: {
+      wheelDelta: number;
+      pinchDelta: number;
+      pointer: { x: number; y: number; down: boolean };
+    },
+    selected: { x: number; y: number } | null,
+  ): void {
+    if (this.cam.mode !== 'director') {
+      this.userHold += dt * 1000;
+      if (this.userHold > USER_HOLD_MS) this.cam.mode = 'director';
+    }
+    this.handleInput(input);
+    this.cam.frame(points, dt, selected);
+  }
+
+  private handleInput(input: {
+    wheelDelta: number;
+    pinchDelta: number;
+    pointer: { x: number; y: number; down: boolean };
+  }): void {
+    if (input.wheelDelta !== 0) {
+      this.cam.smoothDolly = clamp(this.cam.smoothDolly * Math.exp(input.wheelDelta * 0.001), 260, 1500);
+      this.touch();
+    }
+    if (input.pinchDelta !== 0) {
+      this.cam.smoothDolly = clamp(this.cam.smoothDolly * Math.exp(input.pinchDelta * 0.7), 260, 1500);
+      this.touch();
+    }
+
+    const p = input.pointer;
+    if (p.down && !this.dragging) {
+      this.dragging = true;
+      this.dragMoved = false;
+      this.dragSx = p.x;
+      this.dragSy = p.y;
+      this.pan0X = this.cam.targetX;
+      this.pan0Z = this.cam.targetZ;
+    }
+    if (p.down && this.dragging) {
+      const dx = (p.x - this.dragSx) / this.cam.cssH;
+      const dy = (p.y - this.dragSy) / this.cam.cssH;
+      if (Math.hypot(dx, dy) > 0.01) this.dragMoved = true;
+      if (this.dragMoved) {
+        const world = this.planeDelta(dx, dy);
+        this.cam.smoothX = this.pan0X - world.x;
+        this.cam.smoothZ = this.pan0Z - world.z;
+        this.touch();
+      }
+    }
+    if (!p.down && this.dragging) {
+      this.dragging = false;
+      this.dragJustEnded = this.dragMoved;
+    }
+  }
+
+  private planeDelta(dxNorm: number, dyNorm: number): { x: number; z: number } {
+    const tanHalf = Math.tan(this.cam.getFovY() / 2);
+    const worldPerNorm = this.cam.dolly * tanHalf * 2;
+    return {
+      x: -dxNorm * worldPerNorm * this.cam.aspect,
+      z: -dyNorm * worldPerNorm,
+    };
+  }
+
+  private touch(): void {
+    this.cam.mode = 'manual';
+    this.userHold = 0;
+  }
+
+  /** True if the just-finished drag moved beyond the click threshold. */
+  consumeDragJustEnded(): boolean {
+    const v = this.dragJustEnded;
+    this.dragJustEnded = false;
+    return v;
   }
 }
 
