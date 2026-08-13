@@ -592,6 +592,20 @@ button.danger {
   transition: transform 300ms ease;
 }
 
+.debug-chip {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px;
+  color: #7ef08a;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
 .hud-bar {
   position: absolute;
   left: 0;

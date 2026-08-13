@@ -1,6 +1,12 @@
-/** GLSL sources — ships, water, sky, particles. Zero assets, all procedural. */
+/**
+ * GLSL sources — ships, water, sky, particles. Zero assets, all procedural.
+ * NOTE: everything runs at highp — mobile GPUs implement mediump as real
+ * fp16, which destroys world-space varyings (±2400 units) and the inverse
+ * view-proj in the sky shader (flat pale-blue washes, invisible geometry).
+ */
 
 export const SHIP_VS = `#version 300 es
+precision highp float;
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
 layout(location=2) in vec4 aColor;
@@ -43,7 +49,7 @@ void main() {
 }`;
 
 export const SHIP_FS = `#version 300 es
-precision mediump float;
+precision highp float;
 
 in vec3 v_normal;
 in vec3 v_world;
@@ -74,13 +80,14 @@ void main() {
   float diff = max(dot(n, u_lightDir), 0.0);
   vec3 viewDir = normalize(u_eye - v_world);
   float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 2.0) * 0.35;
-  vec3 col = albedo * (0.45 + 0.55 * diff) + vec3(1.0, 0.9, 0.75) * rim * 0.25;
+  vec3 col = albedo * (0.5 + 0.5 * diff) + vec3(1.0, 0.9, 0.75) * rim * 0.25;
   float fog = smoothstep(u_fogStart, u_fogEnd, length(u_eye - v_world));
   col = mix(col, u_fog, clamp(fog, 0.0, 0.9));
   frag = vec4(col, 1.0);
 }`;
 
 export const WATER_VS = `#version 300 es
+precision highp float;
 layout(location=0) in vec2 aPos;
 
 uniform vec2 u_center;
@@ -108,7 +115,7 @@ void main() {
 }`;
 
 export const WATER_FS = `#version 300 es
-precision mediump float;
+precision highp float;
 
 in vec3 v_world;
 in float v_height;
@@ -131,12 +138,13 @@ void main() {
   float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 80.0);
   col += vec3(1.0, 0.92, 0.72) * spec * 0.9;
   float dist = length(u_eye - v_world);
-  float fog = clamp(dist / 2400.0, 0.0, 1.0);
-  col = mix(col, u_horizon, fog * 0.88);
+  float fog = clamp((dist - 500.0) / 1900.0, 0.0, 1.0);
+  col = mix(col, u_horizon, fog * 0.78);
   frag = vec4(col, 1.0);
 }`;
 
 export const SKY_VS = `#version 300 es
+precision highp float;
 layout(location=0) in vec2 aPos;
 out vec2 v_uv;
 void main() {
@@ -145,7 +153,7 @@ void main() {
 }`;
 
 export const SKY_FS = `#version 300 es
-precision mediump float;
+precision highp float;
 
 in vec2 v_uv;
 uniform mat4 u_invViewProj;
@@ -170,6 +178,7 @@ void main() {
 }`;
 
 export const PARTICLE_VS = `#version 300 es
+precision highp float;
 layout(location=0) in vec3 aPos;
 layout(location=1) in float aSize;
 layout(location=2) in vec4 aColor;
@@ -187,7 +196,7 @@ void main() {
 }`;
 
 export const PARTICLE_FS = `#version 300 es
-precision mediump float;
+precision highp float;
 
 in vec4 v_color;
 out vec4 frag;

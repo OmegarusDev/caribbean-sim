@@ -77,6 +77,8 @@ export class BattleScene implements Scene {
   private windEl: HTMLElement | null = null;
   private inspectEl: HTMLElement | null = null;
   private bannerEl: HTMLElement | null = null;
+  private debugChip: HTMLElement | null = null;
+  private debug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
   constructor(
     private readonly deps: BattleDeps,
@@ -450,6 +452,11 @@ export class BattleScene implements Scene {
     this.root.append(windEl);
     this.windEl = windEl;
 
+    if (this.debug) {
+      this.debugChip = el('div', { className: 'debug-chip', text: '' });
+      this.root.append(this.debugChip);
+    }
+
     const bar = el('div', { className: 'hud-bar' });
     const left = el('div', { className: 'hud-group' });
     left.append(this.speedBtn(1), this.speedBtn(2), this.speedBtn(4));
@@ -533,6 +540,20 @@ export class BattleScene implements Scene {
     speedBtns.forEach((b) => {
       b.classList.toggle('is-active', Number(b.dataset.speed) === this.speed);
     });
+
+    if (this.debugChip && this.hudTick % 40 === 0) {
+      const gl = this.deps.gl;
+      let info = 'no-gl';
+      if (gl && !gl.lost) {
+        const err = gl.gl.getError();
+        const renderer = String(gl.gl.getParameter(gl.gl.RENDERER) ?? '?');
+        const cam = this.scene3d?.camera;
+        info = `${renderer} · err:${err} · ${this.lastW}×${this.lastH} · dolly:${cam ? Math.round(cam.dolly) : 0} · ships:${this.battle.ships.filter((s) => !s.sunk).length}`;
+      } else if (gl?.lost) {
+        info = 'CONTEXT LOST';
+      }
+      this.debugChip.textContent = info;
+    }
 
     if (this.inspectEl) {
       const ship = this.selectedId
