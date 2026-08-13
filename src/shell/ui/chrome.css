@@ -675,7 +675,7 @@ button.danger {
 
 .sail-ctl {
   position: absolute;
-  right: calc(var(--safe-right) + 14px);
+  left: calc(var(--safe-left) + 14px);
   top: 50%;
   transform: translateY(-50%);
   height: min(220px, 42vh);
@@ -718,7 +718,7 @@ button.danger {
 
 .fire-ctl {
   position: absolute;
-  bottom: calc(var(--safe-bottom) + 156px);
+  bottom: calc(var(--safe-bottom) + 190px);
   left: 50%;
   transform: translateX(-50%);
   width: min(180px, 32vw);

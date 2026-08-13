@@ -45,7 +45,6 @@ export class WorldScene {
   private entities: WorldEntity[] = [];
   private particles: ParticlePool | null = null;
   private smoothedYaw = new Map<string, number>();
-  private bobPhase = new Map<string, number>();
   private readonly model = mat4Identity();
 
   constructor(gl: GlContext) {
@@ -67,7 +66,6 @@ export class WorldScene {
     for (const e of entities) {
       if (!this.smoothedYaw.has(e.id)) {
         this.smoothedYaw.set(e.id, e.yaw);
-        this.bobPhase.set(e.id, Math.random() * Math.PI * 2);
       }
     }
     for (const key of [...this.smoothedYaw.keys()]) {

@@ -602,7 +602,9 @@ export class BattleScene implements Scene {
       const arrow = this.windEl.querySelector<HTMLElement>('.chip-arrow');
       const wind = this.battle.getWind();
       if (arrow) {
-        arrow.style.transform = `rotate(${(wind.dir * 180) / Math.PI + 90}deg)`;
+        // '➤' points east (0 rad); sim angles run counter-clockwise from
+        // +x, so a clockwise CSS rotation of -dir shows the true bearing.
+        arrow.style.transform = `rotate(${(-wind.dir * 180) / Math.PI}deg)`;
       }
       const label = this.windEl.querySelector<HTMLElement>('.chip-wind-label');
       if (label) {
