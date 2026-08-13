@@ -4,8 +4,56 @@
  * rotated by heading in world space.
  */
 import { HULL_CLASSES } from '../content/ships';
+import type { HullClassId } from '../content/ships';
 import type { ShipState } from '../sim/battle/types';
 import type { DirectorCamera } from './camera';
+
+/** A pristine ShipState for previews (select screens, armory later). */
+export function makePreviewShip(
+  id: string,
+  team: 0 | 1,
+  name: string,
+  hullClass: HullClassId,
+  heading: number,
+): ShipState {
+  const cls = HULL_CLASSES[hullClass];
+  return {
+    id,
+    team,
+    name,
+    hullClass,
+    captain: { skill: 60, bravery: 60, focus: 60, determination: 60 },
+    x: 0,
+    y: 0,
+    heading,
+    vx: 0,
+    vy: 0,
+    speed: 0,
+    sailState: 1,
+    rudder: 0,
+    hull: cls.maxHull,
+    maxHull: cls.maxHull,
+    sails: cls.maxSails,
+    maxSails: cls.maxSails,
+    crew: cls.maxCrew,
+    maxCrew: cls.maxCrew,
+    morale: cls.maxMorale,
+    maxMorale: cls.maxMorale,
+    onFire: false,
+    fireT: 0,
+    reload: 0,
+    intention: 'HOLD',
+    targetId: null,
+    grappledWith: null,
+    boardLeader: false,
+    boardTicks: 0,
+    sunk: false,
+    struck: false,
+    lastSternAim: false,
+    aiT: 0,
+    aimHeading: heading,
+  };
+}
 
 export interface ShipDrawOpts {
   selected?: boolean;

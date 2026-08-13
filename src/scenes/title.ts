@@ -9,7 +9,7 @@ import { createFreshGame } from '../game/state';
 import { btn, clear, el } from '../shell/ui/dom';
 import { confirmModal, panelModal } from '../shell/ui/modal';
 import { toast } from '../shell/ui/toast';
-import { drawSea } from '../present/sea';
+import { drawSea } from '../gfx/sea';
 import { SkirmishScene } from './skirmish';
 
 export interface TitleDeps {

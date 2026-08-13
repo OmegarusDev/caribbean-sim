@@ -1,16 +1,21 @@
 /**
- * Skirmish sandbox — the v0.1 home of the sea-battle sim. Pick a preset,
- * enter the battle; R restarts the seed, N rerolls it.
+ * Skirmish sandbox — ship select for 1v1 duels (live preview on the sea),
+ * plus the fleet-action presets. R restarts a battle's seed, N rerolls it.
  */
 import type { Scene } from '../shell/scenes';
 import type { SceneManager } from '../shell/scenes';
 import type { Input } from '../shell/input';
 import type { Synth } from '../shell/audio';
-import { btn, clear, el } from '../shell/ui/dom';
-import { drawSea } from '../present/sea';
+import { btn, clear, el, segment } from '../shell/ui/dom';
+import { GfxEngine } from '../gfx/pipeline';
+import { drawOcean } from '../gfx/ocean';
+import { drawShipWorld, makePreviewShip } from '../gfx/ship';
+import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
+import type { HullClassId } from '../content/ships';
 import { SKIRMISH_PRESETS } from '../content/skirmish';
 import type { SkirmishPreset } from '../content/skirmish';
-import { BattleScene } from './battle';
+import { makeDuelConfig, makeSkirmishConfig } from '../content/skirmish';
+import { BattleScene, type BattleLaunch } from './battle';
 
 export interface SkirmishDeps {
   chrome: HTMLElement;
@@ -19,59 +24,30 @@ export interface SkirmishDeps {
   synth: Synth;
 }
 
+type SelectMode = 'duel' | 'fleet';
+type Side = 'player' | 'enemy';
+
 export class SkirmishScene implements Scene {
+  private playerClass: HullClassId = 'sloop';
+  private enemyClass: HullClassId = 'sloop';
   private time = 0;
+  private gfx: GfxEngine | null = null;
+  private root: HTMLElement | null = null;
+  private duelView: HTMLElement | null = null;
+  private fleetView: HTMLElement | null = null;
+  private playerStats: HTMLElement | null = null;
+  private enemyStats: HTMLElement | null = null;
 
   constructor(private readonly deps: SkirmishDeps) {}
 
   enter(): void {
-    const { chrome, scenes } = this.deps;
-    clear(chrome);
-    const screen = el('div', { className: 'screen' });
-    const panel = el('div', { className: 'panel skirmish-panel' });
-    panel.append(el('h2', { text: 'Skirmish Sandbox' }));
-    panel.append(
-      el('p', {
-        text: 'Ship-to-ship combat — wind, broadsides, capture, strike. Pick a fleet action.',
-      }),
-    );
-
-    const stack = el('div', { className: 'stack' });
-    for (const preset of SKIRMISH_PRESETS) {
-      stack.append(
-        btn(preset.label, {
-          className: 'ghost',
-          title: preset.blurb,
-          onClick: () => this.launch(preset),
-        }),
-      );
-    }
-    panel.append(stack);
-
-    panel.append(
-      el('p', {
-        className: 'skirmish-note',
-        text: 'In battle: 1/2/4 speed · P pause · R restart · N reroll · D arcs · click a ship to inspect',
-      }),
-    );
-    panel.append(
-      btn('Back', {
-        className: 'quiet',
-        onClick: () => scenes.back(),
-      }),
-    );
-    screen.append(panel);
-    chrome.append(screen);
-  }
-
-  private launch(preset: SkirmishPreset): void {
-    this.deps.synth.ensure();
-    const seed = (Date.now() >>> 0) || 1;
-    this.deps.scenes.push(new BattleScene(this.deps, preset, seed));
+    this.buildChrome();
   }
 
   exit(): void {
-    clear(this.deps.chrome);
+    if (this.root) this.root.remove();
+    this.root = null;
+    this.gfx?.clear();
   }
 
   update(dt: number): void {
@@ -79,10 +55,200 @@ export class SkirmishScene implements Scene {
   }
 
   render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    drawSea(ctx, w, h, this.time, { mood: 'night' });
+    if (!this.gfx) {
+      this.gfx = new GfxEngine(ctx);
+      const cam = this.gfx.camera;
+      cam.x = 0;
+      cam.y = 0;
+      cam.zoom = 0.72;
+      this.gfx.on('ocean', () => drawOcean(ctx, w, h, cam, this.time));
+      this.gfx.on('entity', () => {
+        const player = makePreviewShip('p', 0, `Your ${HULL_CLASSES[this.playerClass].name}`, this.playerClass, 0);
+        const enemy = makePreviewShip('e', 1, `Enemy ${HULL_CLASSES[this.enemyClass].name}`, this.enemyClass, Math.PI);
+        player.x = -430;
+        player.y = 30;
+        enemy.x = 430;
+        enemy.y = -30;
+        drawShipWorld(ctx, cam, player, 0.6, { showBars: true, t: this.time });
+        drawShipWorld(ctx, cam, enemy, 0.6, { showBars: true, t: this.time });
+      });
+    }
+    this.gfx.frame(w, h);
   }
 
   handleBack(): boolean {
     return false;
   }
+
+  private buildChrome(): void {
+    const { chrome, scenes } = this.deps;
+    clear(chrome);
+    this.root = el('div', { className: 'screen skirmish-screen' });
+
+    const head = el('div', { className: 'skirmish-head' });
+    head.append(el('h2', { text: 'Skirmish Sandbox' }));
+    head.append(
+      segment(['Duel', 'Fleet Action'], 0, (i) => this.setMode(i === 0 ? 'duel' : 'fleet')),
+    );
+    this.root.append(head);
+
+    this.duelView = el('div', { className: 'duel-view' });
+    const grid = el('div', { className: 'select-grid' });
+
+    const player = this.buildSide('player', 'Your Ship');
+    const enemy = this.buildSide('enemy', 'Enemy Ship');
+    grid.append(player.panel, el('div', { className: 'vs-mark', text: 'VS' }), enemy.panel);
+    this.duelView.append(grid);
+
+    this.duelView.append(
+      btn('Set Sail', {
+        className: 'cta sail-btn',
+        onClick: () => this.launchDuel(),
+      }),
+    );
+    this.root.append(this.duelView);
+
+    this.fleetView = el('div', { className: 'fleet-view is-hidden' });
+    const stack = el('div', { className: 'stack' });
+    for (const preset of SKIRMISH_PRESETS) {
+      stack.append(
+        btn(preset.label, {
+          className: 'ghost',
+          title: preset.blurb,
+          onClick: () => this.launchFleet(preset),
+        }),
+      );
+    }
+    this.fleetView.append(stack);
+    this.root.append(this.fleetView);
+
+    this.root.append(
+      el('p', {
+        className: 'skirmish-note',
+        text: 'In battle: 1/2/4 speed · P pause · R restart · N reroll · D arcs · click a ship to inspect',
+      }),
+    );
+    this.root.append(
+      btn('Back', {
+        className: 'quiet',
+        onClick: () => scenes.back(),
+      }),
+    );
+
+    chrome.append(this.root);
+    this.refreshSide('player');
+    this.refreshSide('enemy');
+  }
+
+  private buildSide(
+    side: Side,
+    label: string,
+  ): { panel: HTMLElement; row: HTMLElement } {
+    const panel = el('div', { className: 'select-side' });
+    panel.append(el('div', { className: 'select-side-label', text: label }));
+    const row = el('div', { className: 'select-row' });
+    for (const cls of HULL_CLASS_LIST) {
+      const b = btn(HULL_CLASSES[cls].name, {
+        className: 'ghost select-btn',
+        onClick: () => this.pick(side, cls),
+      });
+      b.dataset.side = side;
+      b.dataset.cls = cls;
+      row.append(b);
+    }
+    panel.append(row);
+    const stats = el('div', { className: 'select-stats' });
+    panel.append(stats);
+    if (side === 'player') this.playerStats = stats;
+    else this.enemyStats = stats;
+    return { panel, row };
+  }
+
+  private pick(side: Side, cls: HullClassId): void {
+    if (side === 'player') this.playerClass = cls;
+    else this.enemyClass = cls;
+    this.deps.synth.play('ui');
+    this.refreshSide(side);
+  }
+
+  private setMode(mode: SelectMode): void {
+    this.duelView?.classList.toggle('is-hidden', mode !== 'duel');
+    this.fleetView?.classList.toggle('is-hidden', mode !== 'fleet');
+    this.deps.synth.play('ui');
+  }
+
+  private refreshSide(side: Side): void {
+    if (!this.root) return;
+    const cls = side === 'player' ? this.playerClass : this.enemyClass;
+    const stats = side === 'player' ? this.playerStats : this.enemyStats;
+    this.root.querySelectorAll<HTMLButtonElement>(`[data-side="${side}"]`).forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.cls === cls);
+    });
+    if (stats) stats.innerHTML = statBars(cls, side === 'player' ? '#2e7d8a' : '#c06655');
+  }
+
+  private launchDuel(): void {
+    const player = this.playerClass;
+    const enemy = this.enemyClass;
+    const launch: BattleLaunch = {
+      label: `${HULL_CLASSES[player].name} vs ${HULL_CLASSES[enemy].name}`,
+      makeConfig: (seed) => makeDuelConfig(player, enemy, seed),
+    };
+    this.launch(launch);
+  }
+
+  private launchFleet(preset: SkirmishPreset): void {
+    const launch: BattleLaunch = {
+      label: preset.label,
+      makeConfig: (seed) => makeSkirmishConfig(preset, seed),
+    };
+    this.launch(launch);
+  }
+
+  private launch(launch: BattleLaunch): void {
+    this.deps.synth.ensure();
+    const seed = (Date.now() >>> 0) || 1;
+    this.deps.scenes.push(new BattleScene(this.deps, launch, seed));
+  }
 }
+
+interface StatDef {
+  label: string;
+  value: number;
+}
+
+function statBars(clsId: HullClassId, color: string): string {
+  const cls = HULL_CLASSES[clsId];
+  const stats: StatDef[] = [
+    { label: 'Hull', value: cls.maxHull },
+    { label: 'Sails', value: cls.maxSails },
+    { label: 'Crew', value: cls.maxCrew },
+    { label: 'Guns', value: cls.guns },
+    { label: 'Speed', value: cls.baseSpeed },
+    { label: 'Turn', value: cls.turnRate },
+    { label: 'Range', value: cls.gunRange },
+    { label: 'Boarding', value: 1 + cls.boardingBonus },
+  ];
+  return stats
+    .map((s) => {
+      const ratio = s.value / MAX_STATS[s.label]!;
+      const value = s.label === 'Boarding' ? (s.value * 100).toFixed(0) : String(Math.round(s.value));
+      return `<div class="stat-row"><span class="stat-label">${s.label}</span><span class="stat-bar"><i style="width:${Math.round(ratio * 100)}%;background:${color}"></i></span><span class="stat-value">${value}</span></div>`;
+    })
+    .join('');
+}
+
+const MAX_STATS: Record<string, number> = (() => {
+  const collect = (key: keyof (typeof HULL_CLASSES)['sloop']) =>
+    Math.max(...HULL_CLASS_LIST.map((c) => HULL_CLASSES[c][key] as number));
+  return {
+    Hull: collect('maxHull'),
+    Sails: collect('maxSails'),
+    Crew: collect('maxCrew'),
+    Guns: collect('guns'),
+    Speed: collect('baseSpeed'),
+    Turn: collect('turnRate'),
+    Range: collect('gunRange'),
+    Boarding: Math.max(...HULL_CLASS_LIST.map((c) => 1 + HULL_CLASSES[c].boardingBonus)),
+  };
+})();

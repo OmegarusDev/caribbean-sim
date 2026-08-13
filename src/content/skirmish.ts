@@ -56,3 +56,19 @@ export function makeSkirmishConfig(preset: SkirmishPreset, seed: number): Battle
     teams: [{ hullClasses: preset.team0 }, { hullClasses: preset.team1 }],
   };
 }
+
+/** 1v1 duel config from the ship-select screen. */
+export function makeDuelConfig(
+  player: HullClassId,
+  enemy: HullClassId,
+  seed: number,
+): BattleConfig {
+  const rng = new SeededRng(seed);
+  return {
+    seed,
+    windStrength: 0.75 + rng.range(0, 0.25),
+    windDir: rng.range(0, Math.PI * 2),
+    maxTicks: DEFAULT_MAX_TICKS,
+    teams: [{ hullClasses: [player] }, { hullClasses: [enemy] }],
+  };
+}
