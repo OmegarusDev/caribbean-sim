@@ -15,10 +15,7 @@ import { SeededRng } from '../sim/rng';
 import type { SimEvent } from '../sim/events';
 import { SpectacleMeter } from '../director/spectacle';
 import { eventLine } from '../director/story';
-import { GfxEngine } from '../gfx/pipeline';
 import { FxSystem } from '../gfx/fx';
-import { drawOcean } from '../gfx/ocean';
-import { drawShipWorld } from '../gfx/ship';
 import { SeaScene, toShipView } from '../gfx/scene3d';
 import type { GlContext } from '../gfx/gl/context';
 import { HULL_CLASSES } from '../content/ships';
@@ -63,7 +60,6 @@ export class BattleScene implements Scene {
   private captionLife = 0;
   private story: string[] = [];
   private spectacle = new SpectacleMeter();
-  private gfx2d: GfxEngine | null = null;
   private scene3d: SeaScene | null = null;
   private fx: FxSystem;
   private sinkTimers = new Map<string, number>();
@@ -106,7 +102,8 @@ export class BattleScene implements Scene {
   exit(): void {
     if (this.root) this.root.remove();
     this.root = null;
-    this.gfx2d?.clear();
+    this.scene3d?.dispose();
+    this.scene3d = null;
   }
 
   handleBack(): boolean {
@@ -156,19 +153,8 @@ export class BattleScene implements Scene {
 
     this.spectacle.tick(dt);
 
-    if (this.gfx2d) {
-      this.gfx2d.camera.update(
-        this.battle.ships
-          .filter((s) => !s.sunk)
-          .map((s) => ({ x: s.x, y: s.y })),
-        dt,
-        this.deps.input,
-      );
-    }
-
     this.fx.update(dt);
     for (const ship of this.battle.ships) {
-      this.fx.trackWake(ship.id, ship.x, ship.y);
       if (ship.sunk) {
         this.sinkTimers.set(ship.id, (this.sinkTimers.get(ship.id) ?? 0) + dt);
       }
@@ -178,47 +164,35 @@ export class BattleScene implements Scene {
     this.refreshHud();
   }
 
-  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
+  render(w: number, h: number): void {
+    this.lastW = w;
+    this.lastH = h;
     const gl = this.deps.gl;
-    if (gl && !gl.lost) {
-      if (!this.scene3d) {
-        this.scene3d = new SeaScene(gl);
-        this.scene3d.setWind(this.battle.config.windDir, this.battle.config.windStrength);
-        this.scene3d.camera.setInterest(this.firstShipX, this.firstShipY, 2);
-        this.scene3d.camera.targetX = this.firstShipX;
-        this.scene3d.camera.targetZ = this.firstShipY;
-        this.scene3d.camera.dolly = 760;
-      }
-      const scene = this.scene3d;
-      scene.camera.resize(w, h);
-      scene.camera.update(
-        this.battle.ships.filter((s) => !s.sunk).map((s) => ({ x: s.x, y: s.y })),
-        this.lastDt,
-        this.deps.input,
-        this.selectedPoint(),
-      );
-      scene.smoothPoses(this.lastDt, this.time);
-      const views = this.battle.ships.map((s) =>
-        toShipView(s, this.selectedId === s.id),
-      );
-      for (const v of views) {
-        v.sinkT = this.sinkTimers.get(v.id) ?? 0;
-      }
-      scene.setShips(views);
-      scene.setParticles(this.fx.particles);
-      scene.render(this.time);
-      return;
+    if (!gl || gl.lost) return;
+    if (!this.scene3d) {
+      this.scene3d = new SeaScene(gl);
+      this.scene3d.setWind(this.battle.config.windDir, this.battle.config.windStrength);
+      this.scene3d.camera.setInterest(this.firstShipX, this.firstShipY, 2);
+      this.scene3d.camera.targetX = this.firstShipX;
+      this.scene3d.camera.targetZ = this.firstShipY;
+      this.scene3d.camera.dolly = 760;
     }
-    if (!ctx) return;
-    if (!this.gfx2d) {
-      this.gfx2d = new GfxEngine(ctx);
-      this.gfx2d.camera.setInterest(this.firstShipX, this.firstShipY, 2);
-      this.gfx2d.camera.x = this.firstShipX;
-      this.gfx2d.camera.y = this.firstShipY;
-      this.gfx2d.camera.zoom = 0.8;
-      this.registerLayers2d();
+    const scene = this.scene3d;
+    scene.camera.resize(w, h);
+    scene.camera.update(
+      this.battle.ships.filter((s) => !s.sunk).map((s) => ({ x: s.x, y: s.y })),
+      this.lastDt,
+      this.deps.input,
+      this.selectedPoint(),
+    );
+    scene.smoothPoses(this.lastDt, this.time);
+    const views = this.battle.ships.map((s) => toShipView(s, this.selectedId === s.id));
+    for (const v of views) {
+      v.sinkT = this.sinkTimers.get(v.id) ?? 0;
     }
-    this.gfx2d.frame(w, h);
+    scene.setShips(views);
+    scene.setParticles(this.fx.particles);
+    scene.render(this.time);
   }
 
   private lastDt = 1 / 60;
@@ -229,32 +203,6 @@ export class BattleScene implements Scene {
     if (this.selectedId === null) return null;
     const s = this.battle.ships.find((x) => x.id === this.selectedId);
     return s && !s.sunk ? { x: s.x, y: s.y } : null;
-  }
-
-  private registerLayers2d(): void {
-    if (!this.gfx2d) return;
-    const cam = this.gfx2d.camera;
-    const gfx = this.gfx2d;
-    gfx.on('ocean', () => {
-      drawOcean(gfx.ctx, gfx.w, gfx.h, cam, this.time);
-    });
-    gfx.on('wake', () => {
-      this.fx.drawWakes(gfx.ctx, cam);
-    });
-    gfx.on('entity', () => {
-      for (const ship of this.battle.ships) {
-        drawShipWorld(gfx.ctx, cam, ship, this.battle.config.windDir, {
-          selected: this.selectedId === ship.id,
-          debugArcs: this.debugArcs,
-          showBars: cam.zoom > 0.42,
-          sinkT: this.sinkTimers.get(ship.id) ?? 0,
-          t: this.time,
-        });
-      }
-    });
-    gfx.on('fx', () => {
-      this.fx.draw(gfx.ctx, cam);
-    });
   }
 
   private handleKeys(): HudAction {
@@ -342,7 +290,7 @@ export class BattleScene implements Scene {
 
       const actor = this.battle.ships.find((s) => s.id === ev.actor);
       const target = ev.target ? this.battle.ships.find((s) => s.id === ev.target) : undefined;
-      const cam = this.scene3d?.camera ?? this.gfx2d?.camera;
+      const cam = this.scene3d?.camera;
       if (!cam) continue;
       switch (ev.kind) {
         case 'broadside':
@@ -406,31 +354,12 @@ export class BattleScene implements Scene {
 
   private handleClick(): void {
     const input = this.deps.input;
-    if (!input.pointer.clicked) return;
-    if (this.scene3d) {
-      if (this.scene3d.camera.consumeDragJustEnded()) return;
-      const idx = this.scene3d.pickShip(input.pointer.x, input.pointer.y, this.lastW, this.lastH);
-      const id = idx >= 0 ? this.battle.ships[idx]?.id ?? null : null;
-      if (id !== null && this.selectedId === id) this.selectedId = null;
-      else this.selectedId = id;
-      this.hudDirty = true;
-      return;
-    }
-    if (!this.gfx2d) return;
-    if (this.gfx2d.camera.consumeDragJustEnded()) return;
-    let bestId: string | null = null;
-    let bestD = 30;
-    for (const ship of this.battle.ships) {
-      if (ship.sunk) continue;
-      const s = this.gfx2d.camera.worldToScreen(ship.x, ship.y);
-      const d = Math.hypot(input.pointer.x - s.x, input.pointer.y - s.y);
-      if (d < bestD) {
-        bestD = d;
-        bestId = ship.id;
-      }
-    }
-    if (bestId !== null && this.selectedId === bestId) this.selectedId = null;
-    else this.selectedId = bestId;
+    if (!input.pointer.clicked || !this.scene3d) return;
+    if (this.scene3d.camera.consumeDragJustEnded()) return;
+    const idx = this.scene3d.pickShip(input.pointer.x, input.pointer.y, this.lastW, this.lastH);
+    const id = idx >= 0 ? this.battle.ships[idx]?.id ?? null : null;
+    if (id !== null && this.selectedId === id) this.selectedId = null;
+    else this.selectedId = id;
     this.hudDirty = true;
   }
 

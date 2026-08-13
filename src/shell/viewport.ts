@@ -1,7 +1,7 @@
 /**
  * Pin #app to the visualViewport so iOS URL-bar drift cannot desync hits.
- * The stage canvas is sized to its CSS box × DPR — WebGL when available,
- * Canvas2D otherwise.
+ * The stage canvas is sized to its CSS box × DPR and passed to the GL
+ * context — one render path, WebGL only.
  */
 import type { GlContext } from '../gfx/gl/context';
 
@@ -47,10 +47,10 @@ export function pinAppToVisualViewport(app: HTMLElement): void {
   app.style.top = `${top}px`;
 }
 
-/** Resize the stage to its CSS box × DPR. Returns CSS dims. */
+/** Resize the GL stage to its CSS box × DPR. Returns CSS dims. */
 export function resizeStageCanvas(
   stage: HTMLCanvasElement,
-  gl: GlContext | null = null,
+  gl: GlContext,
 ): { cssW: number; cssH: number } {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const wrap = stage.parentElement;
@@ -58,17 +58,6 @@ export function resizeStageCanvas(
   const stageRect = stage.getBoundingClientRect();
   const cssW = Math.max(1, Math.round(wrapRect?.width || stageRect.width || window.innerWidth));
   const cssH = Math.max(1, Math.round(wrapRect?.height || stageRect.height || window.innerHeight));
-  if (gl) {
-    gl.resize(cssW, cssH, dpr);
-    return { cssW, cssH };
-  }
-  const bw = Math.floor(cssW * dpr);
-  const bh = Math.floor(cssH * dpr);
-  if (stage.width !== bw || stage.height !== bh) {
-    stage.width = bw;
-    stage.height = bh;
-  }
-  const ctx = stage.getContext('2d');
-  ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+  gl.resize(cssW, cssH, dpr);
   return { cssW, cssH };
 }

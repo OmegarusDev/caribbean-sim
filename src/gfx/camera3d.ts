@@ -17,11 +17,14 @@ import {
 
 export type CamMode = 'director' | 'manual' | 'focus';
 
-const DOLLY_MIN = 240;
+const DOLLY_MIN = 260;
 const DOLLY_MAX = 1500;
 const PITCH_MIN = 0.32;
 const PITCH_MAX = 1.15;
-const FOV = (38 * Math.PI) / 180;
+/** Vertical FOV (rad). A floor on the horizontal FOV keeps portrait phones
+ * from collapsing to a ~20° sliver (Lanista's arena-camera lesson). */
+const VFOV = (38 * Math.PI) / 180;
+const HFOV_MIN = (40 * Math.PI) / 180;
 const NEAR = 6;
 const FAR = 9000;
 const USER_HOLD_MS = 3000;
@@ -57,6 +60,7 @@ export class Camera3d {
   private cssW = 800;
   private cssH = 600;
   private ready = false;
+  private vfovHalf = VFOV / 2;
 
   private readonly proj = mat4Identity();
   private readonly view = mat4Identity();
@@ -70,7 +74,19 @@ export class Camera3d {
     this.cssW = Math.max(1, cssW);
     this.cssH = Math.max(1, cssH);
     this.aspect = this.cssW / this.cssH;
+    let hfovHalf = Math.tan(VFOV / 2) * this.aspect;
+    let vfovHalf = VFOV / 2;
+    if (hfovHalf < Math.tan(HFOV_MIN / 2)) {
+      vfovHalf = Math.tan(HFOV_MIN / 2) / Math.max(1e-3, this.aspect);
+      hfovHalf = Math.tan(HFOV_MIN / 2);
+    }
+    this.vfovHalf = vfovHalf;
     this.ready = true;
+  }
+
+  /** Effective vertical FOV (rad) — portrait-safe. */
+  getFovY(): number {
+    return this.vfovHalf * 2;
   }
 
   update(
@@ -92,8 +108,9 @@ export class Camera3d {
       this.smoothX = center.x;
       this.smoothZ = center.y;
       const spread = this.fleetSpread(points);
-      const targetDolly = clamp((spread * 0.75) / Math.tan(FOV / 2) / Math.min(this.aspect, 1.5), DOLLY_MIN, DOLLY_MAX);
-      this.smoothDolly = targetDolly;
+      // Fit the spread in the tightest view axis (portrait = horizontal).
+      const constraintHalf = Math.min(this.vfovHalf, Math.tan(this.vfovHalf) * this.aspect);
+      this.smoothDolly = clamp((spread * 0.85) / (2 * Math.max(1e-3, constraintHalf)), DOLLY_MIN, DOLLY_MAX);
       this.smoothPitch = clamp(0.42 + spread / 2600, PITCH_MIN, PITCH_MAX);
     } else if (this.interestLife > 0) {
       this.smoothX = this.interestX ?? this.smoothX;
@@ -158,7 +175,7 @@ export class Camera3d {
 
   /** Screen-space drag delta → world-plane delta at the target depth. */
   private planeDelta(dxNorm: number, dyNorm: number): { x: number; z: number } {
-    const tanHalf = Math.tan(FOV / 2);
+    const tanHalf = Math.tan(this.vfovHalf);
     const worldPerNorm = this.dolly * tanHalf * 2;
     return {
       x: -dxNorm * worldPerNorm * this.aspect,
@@ -249,7 +266,7 @@ export class Camera3d {
     this.center[0] = this.targetX;
     this.center[1] = 0;
     this.center[2] = this.targetZ;
-    mat4Perspective(this.proj, FOV, this.aspect, NEAR, FAR);
+    mat4Perspective(this.proj, this.vfovHalf * 2, this.aspect, NEAR, FAR);
     mat4LookAt(this.view, this.eye, this.center, this.up);
     mat4Multiply(this.viewProj, this.proj, this.view);
     mat4Invert(this.invViewProj, this.viewProj);

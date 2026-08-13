@@ -8,6 +8,7 @@ import type { HullClassId } from '../content/ships';
 import type { GlHandle } from './gl/context';
 import { createMesh, type GlMesh, type MeshData } from './gl/mesh';
 import { mat4Identity, mat4Multiply, type Mat4 } from './gl/math';
+import type { ShipState } from '../sim/battle/types';
 
 const WOOD_LIGHT: [number, number, number] = [0.47, 0.31, 0.17];
 const WOOD_DARK: [number, number, number] = [0.16, 0.105, 0.07];
@@ -373,4 +374,51 @@ export function shipModel(out: Mat4, pose: ShipPose): Mat4 {
   out[14] = pose.z;
   out[15] = 1;
   return out;
+}
+
+/** A pristine ShipState for previews (select screens, shipyard later). */
+export function makePreviewShip(
+  id: string,
+  team: 0 | 1,
+  name: string,
+  hullClass: HullClassId,
+  heading: number,
+): ShipState {
+  const cls = HULL_CLASSES[hullClass];
+  return {
+    id,
+    team,
+    name,
+    hullClass,
+    captain: { skill: 60, bravery: 60, focus: 60, determination: 60 },
+    x: 0,
+    y: 0,
+    heading,
+    vx: 0,
+    vy: 0,
+    speed: 0,
+    sailState: 1,
+    rudder: 0,
+    hull: cls.maxHull,
+    maxHull: cls.maxHull,
+    sails: cls.maxSails,
+    maxSails: cls.maxSails,
+    crew: cls.maxCrew,
+    maxCrew: cls.maxCrew,
+    morale: cls.maxMorale,
+    maxMorale: cls.maxMorale,
+    onFire: false,
+    fireT: 0,
+    reload: 0,
+    intention: 'HOLD',
+    targetId: null,
+    grappledWith: null,
+    boardLeader: false,
+    boardTicks: 0,
+    sunk: false,
+    struck: false,
+    lastSternAim: false,
+    aiT: 0,
+    aimHeading: heading,
+  };
 }

@@ -9,7 +9,6 @@ import { createFreshGame } from '../game/state';
 import { btn, clear, el } from '../shell/ui/dom';
 import { confirmModal, panelModal } from '../shell/ui/modal';
 import { toast } from '../shell/ui/toast';
-import { drawSea } from '../gfx/sea';
 import { SeaScene } from '../gfx/scene3d';
 import type { GlContext } from '../gfx/gl/context';
 import { SkirmishScene } from './skirmish';
@@ -48,21 +47,18 @@ export class TitleScene implements Scene {
     }
   }
 
-  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
-    if (this.deps.gl && !this.deps.gl.lost) {
-      if (!this.scene3d) {
-        this.scene3d = new SeaScene(this.deps.gl);
-        this.scene3d.setWind(0.9, 0.8);
-        this.scene3d.camera.smoothDolly = 820;
-        this.scene3d.camera.smoothPitch = 0.5;
-        this.scene3d.camera.smoothYaw = 0;
-      }
-      this.scene3d.camera.resize(w, h);
-      this.scene3d.render(this.time);
-      return;
+  render(w: number, h: number): void {
+    const gl = this.deps.gl;
+    if (!gl || gl.lost) return;
+    if (!this.scene3d) {
+      this.scene3d = new SeaScene(gl);
+      this.scene3d.setWind(0.9, 0.8);
+      this.scene3d.camera.smoothDolly = 820;
+      this.scene3d.camera.smoothPitch = 0.5;
+      this.scene3d.camera.smoothYaw = 0;
     }
-    if (!ctx) return;
-    drawSea(ctx, w, h, this.time);
+    this.scene3d.camera.resize(w, h);
+    this.scene3d.render(this.time);
   }
 
   handleBack(): boolean {

@@ -43,6 +43,16 @@ body {
   display: none !important;
 }
 
+/* Scene-transition fade overlay (opacity driven by SceneManager). */
+.scene-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #061012;
+  opacity: 0;
+  pointer-events: none;
+}
+
 #chrome {
   position: absolute;
   inset: 0;

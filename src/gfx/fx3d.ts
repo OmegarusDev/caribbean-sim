@@ -60,8 +60,7 @@ export class Fx3d {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, this.data.subarray(0, this.count * STRIDE), gl.DYNAMIC_DRAW);
     gl.uniformMatrix4fv(this.program.uniform('u_viewProj'), false, cam.getViewProj());
-    const eye = cam.eyeWorld();
-    gl.uniform1f(this.program.uniform('u_scale'), this.gl.cssH * 0.5 / Math.tan((38 * Math.PI) / 180 / 2));
+    gl.uniform1f(this.program.uniform('u_scale'), this.gl.cssH * 0.5 / Math.tan(cam.getFovY() / 2));
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     gl.disable(gl.DEPTH_TEST);
@@ -69,7 +68,6 @@ export class Fx3d {
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
-    void eye;
   }
 
   dispose(): void {

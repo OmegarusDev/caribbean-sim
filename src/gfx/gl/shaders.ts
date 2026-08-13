@@ -138,8 +138,8 @@ void main() {
   float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 80.0);
   col += vec3(1.0, 0.92, 0.72) * spec * 0.9;
   float dist = length(u_eye - v_world);
-  float fog = clamp((dist - 500.0) / 1900.0, 0.0, 1.0);
-  col = mix(col, u_horizon, fog * 0.78);
+  float fog = clamp((dist - 700.0) / 2300.0, 0.0, 1.0);
+  col = mix(col, u_horizon, fog * 0.72);
   frag = vec4(col, 1.0);
 }`;
 

@@ -2,7 +2,7 @@
  * Scene stack with fade transitions (the Apex pattern).
  * push / replace / back; Esc semantics flow through `handleBack`.
  * Scenes own their DOM chrome (enter builds it, exit tears it down) and
- * render the shared stage canvas each frame.
+ * render the shared WebGL stage each frame.
  */
 
 const FADE_MS = 150;
@@ -11,8 +11,7 @@ export interface Scene {
   enter?(): void;
   exit?(): void;
   update(dt: number): void;
-  /** 2D canvas for fallback scenes; GL scenes ignore it and use their own context. */
-  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void;
+  render(w: number, h: number): void;
   /** Return true to consume the back action; false falls through to pop. */
   handleBack?(): boolean;
 }
@@ -29,6 +28,14 @@ export class SceneManager {
   private transition: TransitionKind = 'none';
   private transitionT = 0;
   private pending: PendingNav | null = null;
+  private fadeEl: HTMLElement | null = null;
+
+  constructor() {
+    const el = document.createElement('div');
+    el.className = 'scene-fade';
+    document.body.append(el);
+    this.fadeEl = el;
+  }
 
   get current(): Scene | null {
     return this.stack.length === 0 ? null : this.stack[this.stack.length - 1]!;
@@ -76,6 +83,7 @@ export class SceneManager {
   update(dt: number): void {
     if (this.transition === 'fadeOut') {
       this.transitionT += dt;
+      this.applyFade(this.transitionT / (FADE_MS / 1000));
       if (this.transitionT >= FADE_MS / 1000) {
         this.commitPending();
         this.transition = 'fadeIn';
@@ -85,9 +93,10 @@ export class SceneManager {
     }
     if (this.transition === 'fadeIn') {
       this.transitionT += dt;
+      this.applyFade(1 - this.transitionT / (FADE_MS / 1000));
       if (this.transitionT >= FADE_MS / 1000) {
         this.transition = 'none';
-        this.transitionT = 0;
+        this.applyFade(0);
         if (this.pending !== null) {
           this.beginFadeOut(this.pending);
           return;
@@ -97,19 +106,16 @@ export class SceneManager {
     this.current?.update(dt);
   }
 
-  render(ctx: CanvasRenderingContext2D | null, w: number, h: number): void {
-    this.current?.render(ctx, w, h);
-    if (this.transition === 'none' || !ctx) return;
-    const alpha =
-      this.transition === 'fadeOut'
-        ? Math.min(1, this.transitionT / (FADE_MS / 1000))
-        : Math.max(0, 1 - this.transitionT / (FADE_MS / 1000));
-    if (alpha <= 0) return;
-    ctx.save();
-    ctx.fillStyle = `rgba(6, 10, 12, ${alpha})`;
-    ctx.fillRect(0, 0, w, h);
-    ctx.restore();
+  render(w: number, h: number): void {
+    this.current?.render(w, h);
   }
+
+  private applyFade(alpha: number): void {
+    if (this.fadeEl) {
+      this.fadeEl.style.opacity = String(Math.max(0, Math.min(1, alpha)));
+    }
+  }
+
   private beginFadeOut(nav: PendingNav): void {
     this.pending = nav;
     this.transition = 'fadeOut';
