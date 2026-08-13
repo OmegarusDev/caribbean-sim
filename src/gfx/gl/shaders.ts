@@ -149,7 +149,7 @@ layout(location=0) in vec2 aPos;
 out vec2 v_uv;
 void main() {
   v_uv = aPos;
-  gl_Position = vec4(aPos * 2.0 - 1.0, 0.999, 1.0);
+  gl_Position = vec4(aPos * 2.0 - 1.0, 1.0, 1.0);
 }`;
 
 export const SKY_FS = `#version 300 es

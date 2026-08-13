@@ -27,13 +27,19 @@ export class Sky {
     this.program.use();
     gl.uniformMatrix4fv(this.program.uniform('u_invViewProj'), false, cam.getInvViewProj());
     gl.uniform3f(this.program.uniform('u_top'), 0.03, 0.12, 0.2);
-    gl.uniform3f(this.program.uniform('u_horizon'), 0.36, 0.46, 0.52);
+    gl.uniform3f(this.program.uniform('u_horizon'), 0.24, 0.38, 0.48);
     gl.uniform3f(this.program.uniform('u_sunDir'), sunDir[0], sunDir[1], sunDir[2]);
     gl.uniform3f(this.program.uniform('u_sunColor'), 1.0, 0.78, 0.5);
     gl.bindVertexArray(this.vao);
-    gl.disable(gl.DEPTH_TEST);
+    // The sky sits at the exact far plane and is depth-TESTED: it only fills
+    // pixels where nothing closer has been drawn (above the water horizon).
+    // Depth writes stay off so it never occludes the world. No depth-off
+    // tricks — immune to draw-order or driver quirks.
+    gl.depthMask(false);
+    gl.depthFunc(gl.LEQUAL);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.depthMask(true);
     gl.bindVertexArray(null);
   }
 

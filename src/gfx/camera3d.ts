@@ -89,6 +89,10 @@ export class Camera3d {
     return this.vfovHalf * 2;
   }
 
+  isReady(): boolean {
+    return this.ready;
+  }
+
   update(
     points: Array<{ x: number; y: number }>,
     dt: number,

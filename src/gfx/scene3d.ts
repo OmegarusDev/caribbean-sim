@@ -138,11 +138,14 @@ export class SeaScene {
 
   render(time: number): void {
     const gl = this.gl.gl;
+    if (!this.camera.isReady()) this.camera.resize(this.gl.cssW, this.gl.cssH);
     gl.clearColor(0.03, 0.12, 0.2, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    this.sky.draw(this.camera, this.sunDir);
+    // Water first (the ground plane), then the depth-tested sky fills only
+    // the pixels above the horizon, then the world on top.
     this.water.draw(this.camera, time, this.sunDir);
+    this.sky.draw(this.camera, this.sunDir);
 
     for (const v of this.views) {
       this.drawShip(v, time);
@@ -197,7 +200,7 @@ export class SeaScene {
     gl.uniform3f(prog.uniform('u_stripe'), stripe[0], stripe[1], stripe[2]);
     const flag = TEAM_FLAG[v.team];
     gl.uniform3f(prog.uniform('u_flag'), flag[0], flag[1], flag[2]);
-    gl.uniform3f(prog.uniform('u_fog'), 0.36, 0.46, 0.52);
+    gl.uniform3f(prog.uniform('u_fog'), 0.24, 0.38, 0.48);
     gl.uniform1f(prog.uniform('u_fogStart'), 800);
     gl.uniform1f(prog.uniform('u_fogEnd'), 2500);
     entry.mesh.draw(gl, prog);
@@ -224,7 +227,7 @@ export class SeaScene {
       gl.uniform3f(this.ringProgram.uniform('u_lightDir'), 0.4, 0.8, 0.45);
       gl.uniform3f(this.ringProgram.uniform('u_stripe'), 0.94, 0.79, 0.43);
       gl.uniform3f(this.ringProgram.uniform('u_flag'), 1, 1, 1);
-      gl.uniform3f(this.ringProgram.uniform('u_fog'), 0.36, 0.46, 0.52);
+      gl.uniform3f(this.ringProgram.uniform('u_fog'), 0.24, 0.38, 0.48);
       gl.uniform1f(this.ringProgram.uniform('u_fogStart'), 800);
       gl.uniform1f(this.ringProgram.uniform('u_fogEnd'), 2500);
       gl.enable(gl.BLEND);

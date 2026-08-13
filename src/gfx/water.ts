@@ -53,7 +53,7 @@ export class Water {
     const eye = cam.eyeWorld();
     gl.uniform3f(this.program.uniform('u_eye'), eye[0], eye[1], eye[2]);
     gl.uniform3f(this.program.uniform('u_sunDir'), sunDir[0], sunDir[1], sunDir[2]);
-    gl.uniform3f(this.program.uniform('u_horizon'), 0.36, 0.46, 0.52);
+    gl.uniform3f(this.program.uniform('u_horizon'), 0.24, 0.38, 0.48);
     this.mesh.draw(gl, this.program);
   }
 
