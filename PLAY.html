@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="refresh" content="0; url=https://omegarusdev.github.io/caribbean-sim/" />
+  <meta name="description" content="Persistent-world pirate sim — play in browser." />
+  <title>Play Caribbean Sim</title>
+  <style>
+    :root {
+      --bg: #071014;
+      --fg: #efe9d8;
+      --muted: #8f8a78;
+      --accent: #d4a94f;
+      --accent-hover: #f0c96e;
+      --accent-shadow: #6a4e2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+      color: var(--fg);
+      background:
+        radial-gradient(ellipse at 50% 16%, rgba(212, 169, 79, 0.12) 0%, transparent 55%),
+        linear-gradient(180deg, #0a1a28 0%, var(--bg) 45%, #0e1c24 100%);
+    }
+    main {
+      text-align: center;
+      padding: 2rem 1.25rem;
+      max-width: 28rem;
+    }
+    h1 {
+      margin: 0 0 0.4rem;
+      font-size: clamp(1.6rem, 5vw, 2.1rem);
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-indent: 0.22em;
+    }
+    p {
+      margin: 0 0 1.5rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    a.play {
+      display: inline-block;
+      padding: 0.95rem 2.4rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      text-transform: uppercase;
+      color: #1a1206;
+      background: var(--accent);
+      border: 1px solid #f0c96e;
+      border-radius: 6px;
+      box-shadow: 0 4px 0 var(--accent-shadow);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    a.play:hover { background: var(--accent-hover); }
+    a.play:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 var(--accent-shadow);
+    }
+    noscript p { margin-top: 1rem; }
+  </style>
+  <script>
+    location.replace('https://omegarusdev.github.io/caribbean-sim/');
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Caribbean Sim</h1>
+    <p>Redirecting to the live game. If nothing happens, tap below.</p>
+    <a class="play" href="https://omegarusdev.github.io/caribbean-sim/">▶ Play Now</a>
+    <noscript>
+      <p><a href="https://omegarusdev.github.io/caribbean-sim/">Continue to the game</a></p>
+    </noscript>
+  </main>
+</body>
+</html>

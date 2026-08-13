@@ -1,5 +1,13 @@
 # Caribbean Sim
 
+<p align="center">
+  <a href="https://omegarusdev.github.io/caribbean-sim/">
+    <img src="https://img.shields.io/badge/▶_PLAY_NOW-playable_in_browser-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Play Now" height="40" />
+  </a>
+</p>
+
+<p align="center"><strong>No install.</strong> Works in the browser (desktop &amp; mobile).</p>
+
 Persistent-world pirate sim — the ultralight engine's flagship game.
 
 - **Zero assets.** All graphics procedural, all audio synthesized.
