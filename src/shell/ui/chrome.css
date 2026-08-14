@@ -684,36 +684,15 @@ button.danger {
   fill: #4a2f16;
 }
 
-.wheel-handle-collar {
-  stroke: #5a3a1c;
-  stroke-width: 12;
-  stroke-linecap: round;
-}
-
-.wheel-handle-bulb {
+.wheel-handle {
   fill: #7d5228;
-  stroke: #241708;
-  stroke-width: 0.8;
 }
 
-.wheel-handle-shine {
-  fill: #a06a35;
-  opacity: 0.75;
-}
-
-.wheel-handle-tip {
-  fill: #2f1f0f;
-}
-
-/* The king spoke: a brass-banded knob the helmsman feels in the dark. */
-.wheel-king .wheel-handle-collar {
+/* The king spoke: a brass-trimmed knob the helmsman feels in the dark. */
+.wheel-king {
+  fill: #8a5a2d;
   stroke: #c9a84c;
-  opacity: 0.92;
-}
-
-.wheel-king .wheel-handle-bulb {
-  stroke: #c9a84c;
-  stroke-width: 1.4;
+  stroke-width: 1;
 }
 
 /* The cast shadow is its own layer, driven by the sun via setCast. */

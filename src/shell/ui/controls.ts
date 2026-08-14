@@ -44,7 +44,7 @@ export class WheelControl {
     // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 0 800 150" aria-hidden="true">
+        <svg viewBox="0 -6 800 156" aria-hidden="true">
           <defs>
             <radialGradient id="wheelRimWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
               <stop offset="0.955" stop-color="#241708"/>
@@ -138,24 +138,24 @@ export class WheelControl {
     return out.join('');
   }
 
-  /** The spokes protrude past the rim as handles, capped with turned knobs. */
+  /**
+   * The spokes protrude past the rim as handles. Each handle is ONE line:
+   * a droplet that pinches just past the rim, swells as it leaves the
+   * centre, then rounds off — the silhouette of a turned wooden knob.
+   */
   private handles(): string {
     const out: string[] = [];
     for (let i = 0; i < WHEEL_SPOKES; i++) {
       const a = Math.PI / 2 + (i * Math.PI * 2) / WHEEL_SPOKES;
       const ca = Math.cos(a);
       const sa = Math.sin(a);
-      const deg = ((a - Math.PI / 2) * 180) / Math.PI;
-      const hx = (WHEEL_CX + ca * 688).toFixed(1);
-      const hy = (WHEEL_CY - sa * 688).toFixed(1);
+      // Align the droplet's axis with the spoke's outward direction.
+      const deg = (Math.atan2(-sa, ca) * 180) / Math.PI;
+      const hx = (WHEEL_CX + ca * 683).toFixed(1);
+      const hy = (WHEEL_CY - sa * 683).toFixed(1);
       const king = i === 0 ? ' wheel-king' : '';
       out.push(
-        `<g class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy})">`,
-        `  <line class="wheel-handle-collar" x1="${(WHEEL_CX + ca * 671).toFixed(1)}" y1="${(WHEEL_CY - sa * 671).toFixed(1)}" x2="${(WHEEL_CX + ca * 678).toFixed(1)}" y2="${(WHEEL_CY - sa * 678).toFixed(1)}"/>`,
-        `  <ellipse class="wheel-handle-bulb" cx="${hx}" cy="${hy}" rx="14" ry="6.4"/>`,
-        `  <ellipse class="wheel-handle-shine" cx="${hx}" cy="${(WHEEL_CY - sa * 688 - 1.4).toFixed(1)}" rx="9.5" ry="3"/>`,
-        `  <ellipse class="wheel-handle-tip" cx="${(WHEEL_CX + ca * 695).toFixed(1)}" cy="${(WHEEL_CY - sa * 695).toFixed(1)}" rx="3" ry="5.2"/>`,
-        `</g>`,
+        `<path class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy}) translate(${hx} ${hy})" d="M0,-2.9 C3,-2.8 5,-2.3 8,-3.5 C14,-4.8 21,-4.6 25,0 C21,4.6 14,4.8 8,3.5 C5,2.3 3,2.8 0,2.9 Z"/>`,
       );
     }
     return out.join('');
