@@ -244,10 +244,11 @@ export class BattleScene implements Scene {
   }
 
   /**
-   * Render probe: read back the pixel at the first ship's screen position.
+   * Render probe: read back a strip of pixels across the first ship's hull.
    * Hulls are wood-coloured (r > 60); water is near-black (r < 30). A
    * missing r means the entity pipeline drew nothing — a silent GPU bug
-   * that gl.getError() can never catch.
+   * that gl.getError() can never catch. Reports entity and cull counts so
+   * the failure point (data vs GPU) is identifiable from the phone.
    */
   private probeFrame(scene: WorldScene): void {
     const gl = this.deps.gl;
@@ -266,8 +267,14 @@ export class BattleScene implements Scene {
       this.probe = 'offscreen';
       return;
     }
-    gl.gl.readPixels(Math.floor(px), Math.floor(bh - py), 1, 1, gl.gl.RGBA, gl.gl.UNSIGNED_BYTE, this.probeBuf);
-    this.probe = this.probeBuf[0]! < 40 ? 'EMPTY-SHIP!' : `ok(${this.probeBuf[0]})`;
+    let maxR = 0;
+    for (let k = -3; k <= 3; k++) {
+      const x = Math.floor(px + k * 2 * gl.dpr);
+      if (x < 0 || x >= bw) continue;
+      gl.gl.readPixels(x, Math.floor(bh - py), 1, 1, gl.gl.RGBA, gl.gl.UNSIGNED_BYTE, this.probeBuf);
+      maxR = Math.max(maxR, this.probeBuf[0]!);
+    }
+    this.probe = maxR < 40 ? 'EMPTY-SHIP!' : `ok(${maxR})`;
   }
 
   private registerShips(scene: WorldScene): void {
@@ -647,7 +654,7 @@ export class BattleScene implements Scene {
         const err = gl.gl.getError();
         const renderer = String(gl.gl.getParameter(gl.gl.RENDERER) ?? '?');
         const cam = this.scene?.camera;
-        info = `${renderer} · err:${err} · ${this.lastW}×${this.lastH} · dolly:${cam ? Math.round(cam.dolly) : 0} · ships:${this.battle.ships.filter((s) => !s.sunk).length} · probe:${this.probe}`;
+        info = `${renderer} · err:${err} · ${this.lastW}×${this.lastH} · dolly:${cam ? Math.round(cam.dolly) : 0} · ent:${this.battle.ships.length} · probe:${this.probe}`;
       } else if (gl?.lost) {
         info = 'CONTEXT LOST';
       }

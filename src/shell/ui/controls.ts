@@ -32,9 +32,11 @@ export class WheelControl {
         <svg viewBox="0 0 800 130" aria-hidden="true">
           <g class="wheel-spin">
             <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R + 18}" class="wheel-rim"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R + 2}" class="wheel-rim-inner"/>
             ${this.spokes()}
           </g>
-          <polygon class="wheel-pointer" points="400,4 391,18 409,18"/>
+          <polygon class="wheel-pointer" points="400,4 389,18 411,18"/>
+          <line class="wheel-pointer-line" x1="400" y1="18" x2="400" y2="42"/>
         </svg>
       </div>`;
     this.spin = this.el.querySelector('.wheel-spin');
@@ -47,9 +49,13 @@ export class WheelControl {
       const a = (i * Math.PI) / 8;
       const x = WHEEL_CX + Math.cos(a) * WHEEL_R;
       const y = WHEEL_CY - Math.sin(a) * WHEEL_R;
+      const px = x.toFixed(1);
+      const py = y.toFixed(1);
       out.push(
-        `<line class="wheel-spoke" x1="${WHEEL_CX}" y1="${WHEEL_CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`,
-        `<circle class="wheel-peg" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7"/>`,
+        `<line class="wheel-spoke-dark" x1="${WHEEL_CX}" y1="${WHEEL_CY}" x2="${px}" y2="${py}"/>`,
+        `<line class="wheel-spoke" x1="${WHEEL_CX}" y1="${WHEEL_CY}" x2="${px}" y2="${py}"/>`,
+        `<circle class="wheel-peg" cx="${px}" cy="${py}" r="7.5"/>`,
+        `<circle class="wheel-peg-hole" cx="${px}" cy="${py}" r="3.4"/>`,
       );
     }
     return out.join('');

@@ -651,25 +651,50 @@ button.danger {
 
 .wheel-rim {
   stroke: var(--gold);
-  stroke-width: 5;
+  stroke-width: 6;
   fill: none;
-  opacity: 0.9;
+  opacity: 0.95;
+}
+
+.wheel-rim-inner {
+  stroke: #8a6a34;
+  stroke-width: 2;
+  fill: none;
+  opacity: 0.65;
+}
+
+.wheel-spoke-dark {
+  stroke: rgba(18, 14, 9, 0.85);
+  stroke-width: 11;
+  stroke-linecap: round;
 }
 
 .wheel-spoke {
   stroke: var(--wood-light);
-  stroke-width: 7;
+  stroke-width: 6;
   stroke-linecap: round;
 }
 
 .wheel-peg {
-  fill: var(--wood-light);
-  stroke: var(--gold);
+  fill: var(--gold);
+  stroke: #8a6a34;
   stroke-width: 1.5;
+}
+
+.wheel-peg-hole {
+  fill: #3a2c18;
 }
 
 .wheel-pointer {
   fill: var(--accent-hot);
+  stroke: #8a6a34;
+  stroke-width: 1;
+}
+
+.wheel-pointer-line {
+  stroke: var(--gold);
+  stroke-width: 2;
+  opacity: 0.6;
 }
 
 .sail-ctl {
@@ -717,10 +742,9 @@ button.danger {
 
 .fire-ctl {
   position: absolute;
+  left: calc(var(--safe-left) + 14px);
   bottom: calc(var(--safe-bottom) + 300px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(180px, 32vw);
+  width: min(150px, 26vw);
   text-align: center;
   cursor: pointer;
   user-select: none;
