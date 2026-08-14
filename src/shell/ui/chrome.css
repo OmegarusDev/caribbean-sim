@@ -635,7 +635,8 @@ button.danger {
 }
 
 .wheel-graphic {
-  width: min(100%, 1400px);
+  /* A helm is a machine, not a billboard: a modest arc at the wheel's rail. */
+  width: min(68vw, 880px);
   filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45));
 }
 
@@ -659,15 +660,15 @@ button.danger {
 }
 
 .wheel-felloe-after {
-  stroke-width: 8;
-}
-
-.wheel-felloe-middle {
   stroke-width: 10;
 }
 
+.wheel-felloe-middle {
+  stroke-width: 22;
+}
+
 .wheel-felloe-facing {
-  stroke-width: 12;
+  stroke-width: 20;
 }
 
 /* The far side of the wheel curves away — the arc darkens toward its lip. */
@@ -761,7 +762,7 @@ button.danger {
 .fire-ctl {
   position: absolute;
   left: calc(var(--safe-left) + 14px);
-  top: calc(38vh + 28px);
+  top: calc(36vh + 24px);
   width: min(150px, 26vw);
   text-align: center;
   cursor: pointer;

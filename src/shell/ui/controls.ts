@@ -25,7 +25,6 @@
 const WHEEL_MAX_DEG = 55;
 const WHEEL_CX = 400;
 const WHEEL_CY = 700;
-const WHEEL_R = 678;
 const WHEEL_SPOKES = 12;
 
 export class WheelControl {
@@ -44,19 +43,19 @@ export class WheelControl {
     // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 -6 800 156" aria-hidden="true">
+        <svg viewBox="0 -40 800 196" aria-hidden="true">
           <defs>
-            <radialGradient id="wheelRimWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
-              <stop offset="0.955" stop-color="#241708"/>
-              <stop offset="0.963" stop-color="#3f2a15"/>
-              <stop offset="0.972" stop-color="#6a4522"/>
-              <stop offset="0.977" stop-color="#2a1c0e"/>
-              <stop offset="0.982" stop-color="#5a3a1c"/>
-              <stop offset="0.990" stop-color="#8a5a2d"/>
-              <stop offset="0.997" stop-color="#6a4522"/>
+            <radialGradient id="wheelRimWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="692">
+              <stop offset="0.925" stop-color="#241708"/>
+              <stop offset="0.936" stop-color="#3f2a15"/>
+              <stop offset="0.954" stop-color="#6a4522"/>
+              <stop offset="0.965" stop-color="#2a1c0e"/>
+              <stop offset="0.975" stop-color="#5a3a1c"/>
+              <stop offset="0.985" stop-color="#8a5a2d"/>
+              <stop offset="0.994" stop-color="#6a4522"/>
               <stop offset="1" stop-color="#241708"/>
             </radialGradient>
-            <radialGradient id="wheelFarShade" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
+            <radialGradient id="wheelFarShade" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="692">
               <stop offset="0.9" stop-color="#000" stop-opacity="0"/>
               <stop offset="1" stop-color="#000" stop-opacity="0.42"/>
             </radialGradient>
@@ -72,14 +71,14 @@ export class WheelControl {
           </g>
           <g class="wheel-spin">
             <g class="wheel-spokes">${this.spokes()}</g>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="674" class="wheel-felloe-after"/>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="665" class="wheel-felloe-middle"/>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="654" class="wheel-felloe-facing"/>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}" class="wheel-far-shade"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="687" class="wheel-felloe-after"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="671" class="wheel-felloe-middle"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="650" class="wheel-felloe-facing"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="692" class="wheel-far-shade"/>
             <g class="wheel-handles">${this.handles()}</g>
           </g>
-          <polygon class="wheel-pointer" points="400,4 389,18 411,18"/>
-          <line class="wheel-pointer-line" x1="400" y1="18" x2="400" y2="42"/>
+          <polygon class="wheel-pointer" points="400,0 389,16 411,16"/>
+          <line class="wheel-pointer-line" x1="400" y1="16" x2="400" y2="46"/>
         </svg>
       </div>`;
     this.spin = this.el.querySelector('.wheel-spin');
@@ -110,13 +109,13 @@ export class WheelControl {
       // Turned profile: a shoulder under the rim, a waist, then widening
       // toward the hub (where it leaves the view).
       const profile: Array<[number, number]> = [
-        [652, 6.6],
-        [662, 7.6],
-        [674, 8.6],
-        [680, 7.0],
-        [640, 6.0],
-        [600, 5.2],
-        [556, 6.6],
+        [654, 7.5],
+        [672, 8.6],
+        [686, 9.6],
+        [692, 8.0],
+        [650, 6.5],
+        [610, 5.6],
+        [556, 7.0],
       ];
       const pt = (r: number, w: number): string =>
         `${(WHEEL_CX + ca * r - sa * w).toFixed(1)},${(WHEEL_CY - sa * r - ca * w).toFixed(1)}`;
@@ -151,11 +150,12 @@ export class WheelControl {
       const sa = Math.sin(a);
       // Align the droplet's axis with the spoke's outward direction.
       const deg = (Math.atan2(-sa, ca) * 180) / Math.PI;
-      const hx = (WHEEL_CX + ca * 683).toFixed(1);
-      const hy = (WHEEL_CY - sa * 683).toFixed(1);
+      // Seated inside the after felloe so the knob grows out of the wood.
+      const hx = (WHEEL_CX + ca * 711).toFixed(1);
+      const hy = (WHEEL_CY - sa * 711).toFixed(1);
       const king = i === 0 ? ' wheel-king' : '';
       out.push(
-        `<path class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy}) translate(${hx} ${hy})" d="M0,-2.9 C3,-2.8 5,-2.3 8,-3.5 C14,-4.8 21,-4.6 25,0 C21,4.6 14,4.8 8,3.5 C5,2.3 3,2.8 0,2.9 Z"/>`,
+        `<path class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy}) translate(${hx} ${hy})" d="M0,-3.4 C4,-3.3 7,-2.8 11,-4.4 C17,-6.4 26,-7.2 36,-4.4 C43,-2.6 45.5,-1.2 46,0 C45.5,1.2 43,2.6 36,4.4 C26,7.2 17,6.4 11,4.4 C7,2.8 4,3.3 0,3.4 Z"/>`,
       );
     }
     return out.join('');

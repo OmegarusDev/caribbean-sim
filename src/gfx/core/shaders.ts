@@ -87,6 +87,7 @@ out float v_kind;
 
 void main() {
   vec3 p = aPos;
+  vec3 nrm = aNormal;
   if (aKind > 0.5 && aKind < 2.5) {
     // Sails: billow downwind (u across -1..1, v down 0..1), flutter, sag when torn.
     float u = aUV.x;
@@ -99,15 +100,14 @@ void main() {
     // The billow is curvature, not just silhouette: tilt the normal along
     // the wind by the billow's gradient so the sail reads as a taut sheet.
     float dBdu = cos(u * 3.14159) * 3.14159 * (1.0 - v * 0.5) * 0.18 * aSailRatio;
-    vec3 sailN = normalize(vec3(-aWindLocal.x * dBdu, 1.0, -aWindLocal.y * dBdu));
-    aNormal = sailN;
+    nrm = normalize(vec3(-aWindLocal.x * dBdu, 1.0, -aWindLocal.y * dBdu));
   } else if (aKind > 2.5) {
     float wave = sin(aPos.x * 6.0 + u_time * 9.0 + aPhase);
     p.y += wave * 0.03;
     p.z += cos(aPos.x * 6.0 + u_time * 9.0 + aPhase) * 0.03;
   }
   vec4 world = aModel * vec4(p, 1.0);
-  v_normal = mat3(aModel) * aNormal;
+  v_normal = mat3(aModel) * nrm;
   v_world = world.xyz;
   v_color = aColor;
   v_stripe = aStripe;
