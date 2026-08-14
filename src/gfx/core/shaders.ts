@@ -53,8 +53,11 @@ vec3 skyColor(vec3 dir) {
   vec3 ray = BETA_R * phaseR * (1.0 - tView);
   vec3 mie = BETA_M * hgPhase(mu) * (1.0 - tView);
   vec3 col = (ray + mie * MIE_MULT) * tSun * u_sunColor * u_sunIntensity * SOLAR_E;
+  // The sun's disk: bright but soft-edged — in the water mirror the wave
+  // facets smear it into a glimmering path, and a hard HDR disk would
+  // overexpose that whole path to a white wall.
   float disk = pow(max(mu, 0.0), 1500.0);
-  col += u_sunColor * tSun * disk * SOLAR_E * u_sunIntensity * 0.12;
+  col += u_sunColor * tSun * disk * 2.4 * u_sunIntensity;
   // The camera, not the sky: a gentle filmic tone curve so the bright
   // horizon haze and the deep zenith both read.
   return vec3(1.0) - exp(-col * 1.15);
@@ -148,21 +151,26 @@ void main() {
     albedo = v_flag;
     detail = 1.0;
   } else if (v_kind > 0.5 && v_kind < 2.5) {
-    albedo = vec3(0.94, 0.9, 0.78);
+    albedo = vec3(0.87, 0.84, 0.74);
     detail = texture(u_tex, v_uv).r;
   } else {
     float stripe = smoothstep(0.1, 0.4, v_color.a);
     detail = texture(u_tex, v_uv).r;
     albedo = mix(albedo, v_stripe, stripe * 0.9);
+    // Planks: subtle horizontal runs of the strakes, with a darker seam.
+    float plank = fract(v_uv.y * 7.0);
+    albedo *= 1.0 - smoothstep(0.86, 0.98, plank) * 0.35;
   }
   vec3 N = normalize(v_normal);
-  vec3 col = albedo * (0.5 + 0.5 * max(dot(N, u_lightDir), 0.0));
+  // The diffuse ceiling stays under white: a sunlit sail keeps its canvas.
+  vec3 col = albedo * (0.42 + 0.58 * max(dot(N, u_lightDir), 0.0));
   vec3 viewDir = normalize(u_eye - v_world);
   float rim = pow(1.0 - max(dot(N, viewDir), 0.0), 2.0) * 0.35;
   col += vec3(1.0, 0.9, 0.75) * rim * 0.25;
-  // A breath of sheen on the wood — wet hull, polished rail, sun on the decks.
+  // A breath of sheen on the WOOD only — wet hull, polished rail, sun decks.
   float sheen = pow(max(dot(N, normalize(u_lightDir + viewDir)), 0.0), 24.0);
-  col += vec3(1.0, 0.85, 0.6) * sheen * (0.25 * (1.0 - smoothstep(0.5, 2.5, v_kind)));
+  col += vec3(1.0, 0.85, 0.6) * sheen * (0.25 * (1.0 - smoothstep(0.2, 0.8, v_kind)));
+  col = min(col, vec3(0.97));
   col *= 0.78 + 0.4 * detail;
   float fog = smoothstep(u_fogStart, u_fogEnd, length(u_eye - v_world));
   col = mix(col, u_fog, clamp(fog, 0.0, 0.9));
@@ -297,20 +305,63 @@ void main() {
 
   // Specular: GGX-lite whose roughness is choppiness, plus the anisotropic
   // glitter path aligned with the wind — the sun-path on rough water.
+  // The path is brilliant but never a wall: the sparkle is capped so it
+  // reads as a narrow burning streak with glitter, not a clipped band.
   float roughness = clamp(0.12 + nf2.x * 0.3 + nf2.y * 0.2, 0.05, 0.8);
   float a = roughness * roughness;
   vec3 H = normalize(u_sunDir + V);
   float ndotH = max(dot(N, H), 0.0);
-  float spec = ggxD(ndotH, a) * 0.35;
+  float spec = ggxD(ndotH, a) * 0.14;
   float azDiff = 1.0 - abs(dot(normalize(H.xz), vec2(c, s)));
-  float glitter = pow(max(H.y, 0.0), 24.0) * exp(-azDiff * 12.0);
-  col += u_sunColor * (spec * fres + glitter * 0.55);
+  float glitter = pow(max(H.y, 0.0), 24.0) * exp(-azDiff * 22.0);
+  // The path is a bright streak, never a flood: the sparkle is a small
+  // additive on top of the mirror's own sun glow.
+  col += min(u_sunColor * (spec * fres + glitter * 0.18), vec3(0.5));
 
   // Exponential haze into the physical horizon sky, not a flat colour.
   float haze = 1.0 - exp(-dist * 0.0013);
   vec3 horizonCol = skyColor(normalize(vec3(V.x, 0.04, V.z)));
   col = mix(col, horizonCol, clamp(haze, 0.0, 0.78));
   frag = vec4(col, 1.0);
+}`;
+
+/**
+ * The Kelvin wake: a ribbon that follows the hull's actual path. The bright
+ * arms at the strip edges are the diverging waves; the calm dark centre is
+ * the smoothed water between them — the signature V of a moving hull.
+ */
+export const WAKE_VS = `${COMMON_HEAD}
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+layout(location=2) in float aAlpha;
+
+uniform mat4 u_viewProj;
+
+out vec2 v_uv;
+out float v_alpha;
+
+void main() {
+  v_uv = aUV;
+  v_alpha = aAlpha;
+  gl_Position = u_viewProj * vec4(aPos, 1.0);
+}`;
+
+export const WAKE_FS = `${COMMON_HEAD}
+in vec2 v_uv;
+in float v_alpha;
+
+out vec4 frag;
+
+void main() {
+  float u = v_uv.x;
+  float age = v_uv.y;
+  // Foam lives on the wake's edges — the diverging arms — and dies quickly;
+  // the calm trail between them fades slowly.
+  float edge = smoothstep(0.4, 0.95, abs(u));
+  float foam = edge * (1.0 - age) * (1.0 - age);
+  vec3 col = mix(vec3(0.014, 0.042, 0.07), vec3(0.82, 0.89, 0.91), foam * 0.85);
+  float a = (1.0 - age) * (0.3 + 0.7 * edge) * v_alpha;
+  frag = vec4(col, a);
 }`;
 
 export const SKY_VS = `${COMMON_HEAD}
@@ -338,12 +389,26 @@ void main() {
   vec3 dir = normalize(w.xyz / w.w);
   vec3 col = skyColor(dir);
 
-  // Clouds, lit from the sun's side, thinning as the light goes.
+  // Clouds: two FBM octaves — a low billowing cumulus layer and a fine
+  // cirrus drift — lit from the sun's side. At low sun they catch the warm
+  // light on their undersides, the classic under-lit golden hour.
   float mu = clamp(dot(dir, u_sunDir), 0.0, 1.0);
   float light = 0.25 + 0.75 * u_sunIntensity;
-  float c = texture(u_tex, dir.xz * 3.5 + vec2(u_time * 0.004, 0.0)).r;
-  vec3 cloudTint = u_cloudColor * light + u_sunColor * pow(mu, 2.0) * 0.25;
+  vec2 cw = dir.xz * 3.5 + vec2(u_time * 0.004, 0.0);
+  float c = texture(u_tex, cw).r;
+  c = c * 0.62 + texture(u_tex, cw * 2.3 + vec2(u_time * 0.003, u_time * 0.002)).r * 0.38;
+  float cirrus = texture(u_tex, cw * 0.55 - vec2(u_time * 0.002, 0.0)).r;
+  float underlit = 0.45 + 0.55 * smoothstep(-0.1, 0.35, u_sunDir.y) * (1.0 - mu * mu * 0.8);
+  vec3 cloudTint = u_cloudColor * light * (0.6 + 0.4 * underlit) + u_sunColor * pow(mu, 2.0) * 0.3;
   col = mix(col, cloudTint, smoothstep(0.55, 0.95, c) * u_cloudCover * light);
+  col = mix(col, cloudTint * 0.7, smoothstep(0.8, 0.98, cirrus) * u_cloudCover * light * 0.35);
+
+  // The sun's anamorphic streak: the lens response to a bright point
+  // source — a tight cross hugging the disk, never a band across the sky.
+  float nearSun = exp(-pow((1.0 - mu) * 8.0, 2.0));
+  float streakV = exp(-pow((dir.y - u_sunDir.y) * 13.0, 2.0)) * exp(-pow((dir.x - u_sunDir.x) * 26.0, 2.0)) * 0.14;
+  float streakH = exp(-pow((dir.y - u_sunDir.y) * 26.0, 2.0)) * exp(-pow((dir.x - u_sunDir.x) * 13.0, 2.0)) * 0.09;
+  col += u_sunColor * (streakV + streakH) * nearSun * u_sunIntensity;
 
   // At night the sky shows the real stars, faint and sparse.
   float night = 1.0 - u_sunIntensity;

@@ -10,11 +10,12 @@ const STRIDE = 8;
 
 const KIND_COLOR: Array<[number, number, number]> = [
   [1, 0.88, 0.55], // flash
-  [0.25, 0.26, 0.28], // smoke
+  [0.22, 0.23, 0.25], // smoke
   [0.5, 0.33, 0.16], // splinter
   [1, 0.55, 0.15], // ember
   [0.82, 0.92, 0.94], // bubble
   [0.85, 0.93, 0.95], // ring
+  [0.92, 0.96, 0.97], // spray
 ];
 
 export class Fx3d {
@@ -50,12 +51,13 @@ export class Fx3d {
       const base = i * PARTICLE_STRIDE;
       const x = src[base]!;
       const y = src[base + 1]!;
-      const size = src[base + 6]!;
-      const kind = src[base + 7]!;
-      const a = Math.max(0, src[base + 4]! / src[base + 5]!);
+      const z = src[base + 2]!;
+      const size = src[base + 8]!;
+      const kind = src[base + 9]!;
+      const a = Math.max(0, src[base + 6]! / src[base + 7]!);
       const out = i * STRIDE;
       this.data[out] = x;
-      this.data[out + 1] = 3 + size * 0.05;
+      this.data[out + 1] = z;
       this.data[out + 2] = y;
       this.data[out + 3] = size;
       const [r, g, b] = KIND_COLOR[kind] ?? KIND_COLOR[0]!;

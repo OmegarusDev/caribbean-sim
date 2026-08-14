@@ -23,6 +23,8 @@ const SHADERS = [
   'SKY_FS',
   'PARTICLE_VS',
   'PARTICLE_FS',
+  'WAKE_VS',
+  'WAKE_FS',
 ] as const;
 
 describe('GLSL validation', () => {

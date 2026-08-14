@@ -30,6 +30,7 @@ import { ringEntity, shipToEntity } from '../gfx/present/shipViews';
 import type { WorldEntity } from '../gfx/world/entities';
 import type { GlContext } from '../gfx/core/context';
 import { HULL_CLASSES, HULL_CLASS_LIST } from '../content/ships';
+import { waveHeight } from '../gfx/world/waves';
 import { el } from '../shell/ui/dom';
 import { FireControl, SailControl, WheelControl } from '../shell/ui/controls';
 
@@ -78,6 +79,7 @@ export class BattleScene implements Scene {
   private spectacle = new SpectacleMeter();
   private scene: WorldScene | null = null;
   private fx: FxSystem;
+  private bowHeight = new Map<string, number>();
   private sinkTimers = new Map<string, number>();
   private result: BattleResult | null = null;
   private pending: HudAction = { type: 'NONE' };
@@ -105,6 +107,7 @@ export class BattleScene implements Scene {
     this.battle = new Battle(launch.makeConfig(seed));
     const fxRng = new SeededRng(seed).split(0xfeed);
     this.fx = new FxSystem(() => fxRng.next());
+    this.fx.setSurface((x, y) => waveHeight(x, y, this.time, this.battle.config.windDir));
     const first = this.battle.ships[0]!;
     this.firstShipX = first.x;
     this.firstShipY = first.y;
@@ -180,6 +183,26 @@ export class BattleScene implements Scene {
     }
 
     this.spectacle.tick(dt);
+
+    if (this.scene) {
+      this.scene.updateWakes(this.battle.ships, dt);
+      this.scene.setWind(this.battle.getWind().dir);
+      this.fx.setWind(this.battle.getWind().dir, 0.4);
+      for (const ship of this.battle.ships) {
+        if (ship.sunk) continue;
+        const cls = HULL_CLASSES[ship.hullClass];
+        const bx = ship.x + Math.cos(ship.heading) * cls.length * 0.5;
+        const by = ship.y + Math.sin(ship.heading) * cls.length * 0.5;
+        const prev = this.bowHeight.get(ship.id) ?? (this.bowHeight.set(ship.id, waveHeight(bx, by, this.time, this.battle.getWind().dir)), waveHeight(bx, by, this.time, this.battle.getWind().dir));
+        const now = waveHeight(bx, by, this.time, this.battle.getWind().dir);
+        const plunge = Math.max(0, (prev - now) / Math.max(dt, 0.001) - 0.1);
+        this.bowHeight.set(ship.id, now);
+        const speedFactor = Math.min(1, ship.speed / cls.baseSpeed);
+        if (speedFactor > 0.25) {
+          this.fx.bowSpray(ship.x, ship.y, ship.heading, cls.length, speedFactor * 0.5, plunge * 0.06);
+        }
+      }
+    }
 
     this.fx.update(dt);
     for (const ship of this.battle.ships) {
@@ -464,6 +487,7 @@ export class BattleScene implements Scene {
           if (actor) {
             const cls = HULL_CLASSES[actor.hullClass];
             this.fx.muzzleFlash(actor.x, actor.y, actor.heading, cls.length);
+            cam.shake(1.6);
           }
           break;
         case 'broadsideHit':
@@ -482,6 +506,7 @@ export class BattleScene implements Scene {
           break;
         case 'sink':
           if (actor) {
+            this.fx.explosion(actor.x, actor.y);
             this.fx.bubbles(actor.x, actor.y);
             cam.setInterest(actor.x, actor.y, 2.2);
             cam.shake(12);

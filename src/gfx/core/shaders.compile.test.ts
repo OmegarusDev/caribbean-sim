@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright';
-import { SHIP_VS, SHIP_FS, RING_VS, RING_FS, WATER_VS, WATER_FS, SKY_VS, SKY_FS, PARTICLE_VS, PARTICLE_FS } from './shaders';
+import { SHIP_VS, SHIP_FS, RING_VS, RING_FS, WATER_VS, WATER_FS, SKY_VS, SKY_FS, PARTICLE_VS, PARTICLE_FS, WAKE_VS, WAKE_FS } from './shaders';
 
 const PAIRS: Record<string, [string, string]> = {
   SHIP: [SHIP_VS, SHIP_FS],
@@ -17,6 +17,7 @@ const PAIRS: Record<string, [string, string]> = {
   WATER: [WATER_VS, WATER_FS],
   SKY: [SKY_VS, SKY_FS],
   PARTICLE: [PARTICLE_VS, PARTICLE_FS],
+  WAKE: [WAKE_VS, WAKE_FS],
 };
 
 let browser: Browser | null = null;

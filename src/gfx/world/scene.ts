@@ -12,6 +12,7 @@ import type { ParticlePool } from '../core/particles';
 import { Camera3d, CameraController } from '../core/camera';
 import { Sky } from './sky';
 import { Water } from './water';
+import { WakeSystem } from './wake';
 import { Fx3d } from '../core/fx3d';
 import {
   INSTANCE_ATTRIBS,
@@ -41,6 +42,7 @@ export class WorldScene {
   private gl: GlContext;
   private sky: Sky;
   private water: Water;
+  private wakeSys: WakeSystem;
   private fx3d: Fx3d;
   private meshes = new Map<string, MeshBatch>();
   private entities: WorldEntity[] = [];
@@ -52,6 +54,7 @@ export class WorldScene {
     this.gl = gl;
     this.sky = new Sky(gl);
     this.water = new Water(gl);
+    this.wakeSys = new WakeSystem(gl);
     this.fx3d = new Fx3d(gl);
     this.controller = new CameraController(this.camera);
     gl.onRestore(() => this.rebuild());
@@ -83,6 +86,12 @@ export class WorldScene {
   /** The wind drives the sea and the sails — not the sun. */
   setWind(dir: number): void {
     this.windDir = dir;
+    this.wakeSys.setWind(dir);
+  }
+
+  /** Feed the fleet's motion so the wakes follow the hulls' real paths. */
+  updateWakes(ships: ReadonlyArray<{ id: string; x: number; y: number; speed: number }>, dt: number): void {
+    this.wakeSys.update(ships, dt);
   }
 
   // The sun is real: an ephemeris on Caribbean latitude (20N) in July.
@@ -135,6 +144,7 @@ export class WorldScene {
 
     this.water.draw(this.camera, this.atmosphere, time, this.windDir);
     this.sky.draw(this.camera, this.atmosphere, time);
+    this.wakeSys.draw(this.camera, time);
 
     this.drawEntities(time);
 
@@ -220,6 +230,7 @@ export class WorldScene {
     this.meshes.clear();
     this.sky = new Sky(this.gl);
     this.water = new Water(this.gl);
+    this.wakeSys = new WakeSystem(this.gl);
     this.fx3d = new Fx3d(this.gl);
     this.onRebuild?.();
   }
@@ -233,6 +244,7 @@ export class WorldScene {
     this.meshes.clear();
     this.sky.dispose();
     this.water.dispose();
+    this.wakeSys.dispose();
     this.fx3d.dispose();
   }
 }
