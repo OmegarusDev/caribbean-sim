@@ -48,6 +48,7 @@ export function fingerprintBattle(
   for (const r of result.remaining) values.push(Math.round(r.hullRatio * 1000));
   for (const n of result.sunk) values.push(hashString(n));
   for (const n of result.struck) values.push(hashString(n));
+  for (const n of result.escaped ?? []) values.push(hashString(n));
   return hashNumbers(values);
 }
 

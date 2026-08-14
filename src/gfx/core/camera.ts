@@ -113,17 +113,6 @@ export class Camera3d {
     this.shakeAmp = Math.max(this.shakeAmp, amount);
   }
 
-  focusOn(x: number, z: number): void {
-    this.mode = 'focus';
-    this.smoothX = x;
-    this.smoothZ = z;
-    this.smoothDolly = Math.min(this.smoothDolly, 460);
-  }
-
-  clearFocus(): void {
-    this.mode = 'director';
-  }
-
   /** Frames from the given points (director) — returns whether an update happened. */
   frame(
     points: Array<{ x: number; y: number }>,
@@ -189,12 +178,6 @@ export class Camera3d {
       }
     }
     return max;
-  }
-
-  /** Smoothly move the target toward a world point (interest/focus pull). */
-  pullTo(x: number, z: number, strength: number): void {
-    this.smoothX += (x - this.smoothX) * strength;
-    this.smoothZ += (z - this.smoothZ) * strength;
   }
 
   private computeMatrices(): void {

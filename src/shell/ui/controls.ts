@@ -20,15 +20,19 @@ export class WheelControl {
     this.onChange = onChange;
     this.el = document.createElement('div');
     this.el.className = 'wheel-ctl';
+    // The el is the wide drag surface (full deflection at the screen edge);
+    // the graphic is a fixed-width wheel centered inside it.
     this.el.innerHTML = `
-      <svg viewBox="0 0 240 150" aria-hidden="true">
-        <g class="wheel-spin">
-          <circle cx="120" cy="115" r="98" class="wheel-rim"/>
-          <circle cx="120" cy="115" r="13" class="wheel-hub"/>
-          ${this.spokes()}
-        </g>
-        <polygon class="wheel-pointer" points="120,4 113,16 127,16"/>
-      </svg>`;
+      <div class="wheel-graphic">
+        <svg viewBox="0 0 240 150" aria-hidden="true">
+          <g class="wheel-spin">
+            <circle cx="120" cy="115" r="98" class="wheel-rim"/>
+            <circle cx="120" cy="115" r="13" class="wheel-hub"/>
+            ${this.spokes()}
+          </g>
+          <polygon class="wheel-pointer" points="120,4 113,16 127,16"/>
+        </svg>
+      </div>`;
     this.spin = this.el.querySelector('.wheel-spin');
     this.bind();
   }

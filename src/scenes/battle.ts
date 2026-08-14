@@ -674,7 +674,8 @@ export class BattleScene implements Scene {
     const title = this.result.winner === 'DRAW' ? 'DRAW' : win ? 'VICTORY' : 'DEFEAT';
     const lines: string[] = [];
     if (this.result.endReason === 'escape') {
-      lines.push('The chase broke — the enemy slipped away with the wind.');
+      const evader = this.result.escaped?.join(', ') ?? 'The ship';
+      lines.push(`The chase broke — ${evader} slipped away with the wind.`);
     }
     if (this.result.captured.length)
       lines.push(`Captured: ${this.result.captured.join(', ')}`);

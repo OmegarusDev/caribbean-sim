@@ -623,7 +623,9 @@ button.danger {
   bottom: calc(var(--safe-bottom) + 60px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(300px, 48vw);
+  width: min(520px, 92vw);
+  display: flex;
+  justify-content: center;
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -632,6 +634,10 @@ button.danger {
 
 .wheel-ctl:active {
   cursor: grabbing;
+}
+
+.wheel-graphic {
+  width: min(300px, 48vw);
 }
 
 .wheel-ctl svg {
