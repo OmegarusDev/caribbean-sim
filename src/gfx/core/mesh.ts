@@ -47,6 +47,9 @@ export function createMesh(
   data: MeshData,
   instances?: MeshInstanceLayout,
 ): GlMesh {
+  if (data.positions.length % 3 !== 0) {
+    throw new Error('mesh positions must be vec3 (3 floats per vertex)');
+  }
   const baseStride = 3 + 3 + 4 + 2 + 1;
   const floats = new Float32Array((data.positions.length / 3) * baseStride);
   let f = 0;

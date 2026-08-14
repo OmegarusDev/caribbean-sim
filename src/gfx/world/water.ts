@@ -12,6 +12,30 @@ import type { Atmosphere } from './atmosphere';
 const GRID = 64;
 const HALF = 2400;
 
+/** Grid geometry: vec3 positions + indices. Exported for tests. */
+export function buildWaterGrid(grid = GRID, half = HALF): {
+  positions: number[];
+  indices: number[];
+} {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const cell = (half * 2) / (grid - 1);
+  for (let r = 0; r < grid; r++) {
+    for (let c = 0; c < grid; c++) {
+      positions.push(-half + c * cell, 0, -half + r * cell);
+    }
+  }
+  for (let r = 0; r < grid - 1; r++) {
+    for (let c = 0; c < grid - 1; c++) {
+      const a = r * grid + c;
+      const b = a + 1;
+      const d = a + grid;
+      indices.push(a, b, d, b, d + 1, d);
+    }
+  }
+  return { positions, indices };
+}
+
 export class Water {
   private program: GlProgram;
   private mesh: GlMesh;
@@ -19,22 +43,7 @@ export class Water {
 
   constructor(private readonly gl: GlContext) {
     this.program = createProgram(gl.gl, buildWaterVS(), WATER_FS);
-    const positions: number[] = [];
-    const indices: number[] = [];
-    const cell = (HALF * 2) / (GRID - 1);
-    for (let r = 0; r < GRID; r++) {
-      for (let c = 0; c < GRID; c++) {
-        positions.push(-HALF + c * cell, -HALF + r * cell);
-      }
-    }
-    for (let r = 0; r < GRID - 1; r++) {
-      for (let c = 0; c < GRID - 1; c++) {
-        const a = r * GRID + c;
-        const b = a + 1;
-        const d = a + GRID;
-        indices.push(a, b, d, b, d + 1, d);
-      }
-    }
+    const { positions, indices } = buildWaterGrid();
     this.mesh = createMesh(gl.gl, {
       positions,
       normals: [],

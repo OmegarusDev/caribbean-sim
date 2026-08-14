@@ -32,3 +32,20 @@ describe('shared wave field', () => {
     }
   });
 });
+
+describe('water grid geometry', () => {
+  it('positions are vec3 and indices stay in range', async () => {
+    const { buildWaterGrid } = await import('./water');
+    const { positions, indices } = buildWaterGrid(8, 400);
+    expect(positions.length % 3).toBe(0);
+    const verts = positions.length / 3;
+    expect(verts).toBe(64); // 8x8
+    for (const idx of indices) {
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(idx).toBeLessThan(verts);
+    }
+    // grid covers the full span and sits at y=0
+    const ys = positions.filter((_, i) => i % 3 === 1);
+    expect(new Set(ys)).toEqual(new Set([0]));
+  });
+});
