@@ -28,11 +28,10 @@ export class Sky {
     const gl = this.gl.gl;
     this.program.use();
     gl.uniformMatrix4fv(this.program.uniform('u_invViewProj'), false, cam.getInvViewProj());
-    gl.uniform3f(this.program.uniform('u_top'), atm.skyTop[0], atm.skyTop[1], atm.skyTop[2]);
-    gl.uniform3f(this.program.uniform('u_horizon'), atm.skyHorizon[0], atm.skyHorizon[1], atm.skyHorizon[2]);
     gl.uniform3f(this.program.uniform('u_cloudColor'), atm.cloudColor[0], atm.cloudColor[1], atm.cloudColor[2]);
     gl.uniform3f(this.program.uniform('u_sunDir'), atm.sunDir[0], atm.sunDir[1], atm.sunDir[2]);
     gl.uniform3f(this.program.uniform('u_sunColor'), atm.sunColor[0], atm.sunColor[1], atm.sunColor[2]);
+    gl.uniform1f(this.program.uniform('u_sunIntensity'), atm.sunIntensity);
     gl.uniform1f(this.program.uniform('u_cloudCover'), atm.cloudCover);
     gl.uniform1f(this.program.uniform('u_time'), time);
     const tex = getProceduralTexture(this.gl, 'noise:cloud', {

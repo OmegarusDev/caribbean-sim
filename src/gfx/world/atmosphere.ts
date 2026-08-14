@@ -12,6 +12,8 @@ export interface Atmosphere {
   cloudCover: number;
   sunDir: Vec3;
   sunColor: Vec3;
+  /** 0..1 light level from the sun's elevation (ephemeris-driven). */
+  sunIntensity: number;
   fog: Vec3;
   fogStart: number;
   fogEnd: number;
@@ -26,6 +28,7 @@ export const DAY: Atmosphere = {
   cloudCover: 0.35,
   sunDir: [0.37, 0.55, 0.37],
   sunColor: [1.0, 0.78, 0.5],
+  sunIntensity: 1,
   fog: [0.24, 0.38, 0.48],
   fogStart: 800,
   fogEnd: 2500,
@@ -40,6 +43,7 @@ export const DUSK: Atmosphere = {
   cloudCover: 0.4,
   sunDir: [0.2, 0.2, 0.55],
   sunColor: [1.0, 0.55, 0.3],
+  sunIntensity: 1,
   fog: [0.32, 0.28, 0.3],
   fogStart: 600,
   fogEnd: 2200,
@@ -54,6 +58,7 @@ export const NIGHT: Atmosphere = {
   cloudCover: 0.5,
   sunDir: [-0.3, -0.5, -0.4],
   sunColor: [0.25, 0.3, 0.5],
+  sunIntensity: 1,
   fog: [0.04, 0.07, 0.12],
   fogStart: 500,
   fogEnd: 2400,

@@ -213,6 +213,7 @@ export class BattleScene implements Scene {
     }
     const scene = this.scene;
     scene.setWind(this.battle.getWind().dir);
+    scene.setEpoch(0.63);
     scene.camera.resize(w, h);
     scene.controller.update(
       this.cameraPoints(),

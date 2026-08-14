@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OCEAN_WAVES, waveHeight, waveChopGLSL, waveSwellGLSL } from './waves';
+import { OCEAN_WAVES, waveHeight, waveChopGLSL, waveSwellGLSL, waveOmega, GRAVITY, fmtGLSL } from './waves';
 
 describe('shared wave field', () => {
   it('heights stay bounded — the sea is a gentle plane, not a storm', () => {
@@ -29,7 +29,8 @@ describe('shared wave field', () => {
       // Tolerant presence checks: "2" matches the shader's "2.0", and so on.
       expect(WATER_VS).toContain(String(w.amp));
       expect(WATER_VS).toContain(`* ${w.freq}`);
-      expect(WATER_VS).toContain(String(w.speed));
+      // The shader's angular frequency is the derived omega, not a table.
+      expect(WATER_VS).toContain(fmtGLSL(waveOmega(w.freq)));
     }
     // the octave directions derive from the wind in both consumers
     expect(WATER_VS).toContain('cos(wind + 0.300)');
@@ -54,11 +55,29 @@ describe('shared wave field', () => {
   });
 
   it('swell octaves are the slow pair the chop rises above', () => {
-    const fmt = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
     const swell = waveSwellGLSL();
     for (const w of OCEAN_WAVES) {
-      const present = swell.includes(`* ${fmt(w.amp)};`);
+      const present = swell.includes(`* ${fmtGLSL(w.amp)};`);
       expect(present).toBe(w.q === 0);
     }
+  });
+
+  it('every wave obeys the dispersion relation omega^2 = g*k', () => {
+    for (const w of OCEAN_WAVES) {
+      const omega = waveOmega(w.freq);
+      expect(omega * omega).toBeCloseTo(GRAVITY * w.freq, 9);
+    }
+    // Longer waves genuinely travel faster: phase speed c = omega/k.
+    const phaseSpeed = OCEAN_WAVES.map((w) => waveOmega(w.freq) / w.freq);
+    for (let i = 1; i < phaseSpeed.length; i++) {
+      expect(phaseSpeed[i]!).toBeLessThan(phaseSpeed[i - 1]!);
+    }
+    // The great swell's period: T = 2*PI/omega — about 45 s at g = 9.8.
+    const T = (2 * Math.PI) / waveOmega(OCEAN_WAVES[0]!.freq);
+    expect(T).toBeGreaterThan(30);
+    expect(T).toBeLessThan(70);
+    // Short chop: fast, tight crests — seconds, not minutes.
+    const Tchop = (2 * Math.PI) / waveOmega(OCEAN_WAVES[4]!.freq);
+    expect(Tchop).toBeLessThan(15);
   });
 });

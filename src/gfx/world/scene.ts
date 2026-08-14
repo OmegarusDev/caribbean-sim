@@ -22,6 +22,7 @@ import {
 } from './entities';
 import type { Atmosphere } from './atmosphere';
 import { DAY } from './atmosphere';
+import { solarPosition } from './sun';
 import { getProceduralTexture, hashNoise, clearTextureCache } from '../core/texture';
 
 interface MeshBatch {
@@ -79,14 +80,27 @@ export class WorldScene {
 
   private windDir = 0;
 
-  /** Align the sun with the wind for consistent water/sail lighting. */
+  /** The wind drives the sea and the sails — not the sun. */
   setWind(dir: number): void {
     this.windDir = dir;
-    const a = this.atmosphere;
-    const len = Math.hypot(Math.cos(dir) * 0.5, 0.55, Math.sin(dir) * 0.5) || 1;
-    a.sunDir[0] = (Math.cos(dir) * 0.5) / len;
-    a.sunDir[1] = 0.55 / len;
-    a.sunDir[2] = (Math.sin(dir) * 0.5) / len;
+  }
+
+  // The sun is real: an ephemeris on Caribbean latitude (20N) in July.
+  private sunDir: [number, number, number] = [0.37, 0.55, 0.37];
+  private sunColor: [number, number, number] = [0.98, 0.95, 0.88];
+  private sunIntensity = 1;
+  private readonly LATITUDE = 0.35;
+  private readonly DAY_OF_YEAR = 190;
+
+  /**
+   * Set the hour of day (0..1, 0.5 = solar noon) and the ephemeris takes
+   * over: the sun's elevation, azimuth and light level all fall out of the
+   * astronomy, and the whole world — sky, mirror, ships — follows it.
+   */
+  setEpoch(hourFraction: number): void {
+    const s = solarPosition(this.DAY_OF_YEAR, hourFraction, this.LATITUDE);
+    this.sunDir = s.dir;
+    this.sunIntensity = s.intensity;
   }
 
   /** Shortest-path yaw smoothing so entities turn, never snap. */
@@ -144,6 +158,9 @@ export class WorldScene {
     }
     const eye = this.camera.eyeWorld();
     const a = this.atmosphere;
+    a.sunDir = this.sunDir;
+    a.sunColor = this.sunColor;
+    a.sunIntensity = this.sunIntensity;
     for (const [meshId, list] of byMesh) {
       const batch = this.meshes.get(meshId);
       if (!batch) continue;

@@ -34,6 +34,22 @@ describe('GLSL validation', () => {
     });
   }
 
+  it('no uniform is declared twice — ANGLE rejects redefinitions', () => {
+    // The shared scattering chunk and a shader header can both declare the
+    // same uniform; shaderfrog tolerates it, the GPU does not.
+    for (const name of SHADERS) {
+      const glsl = (shaders as unknown as Record<string, string>)[name]!;
+      const declared = new Map<string, number>();
+      const re = /uniform\s+(?:highp\s+|mediump\s+|lowp\s+)?(?:sampler2D|float|vec2|vec3|vec4|mat4|int)\s+(\w+)\s*;/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(glsl)) !== null) {
+        declared.set(m[1]!, (declared.get(m[1]!) ?? 0) + 1);
+      }
+      const dupes = [...declared.entries()].filter(([, n]) => n > 1).map(([n]) => n);
+      expect(dupes, `${name} declares twice: ${dupes.join(', ')}`).toEqual([]);
+    }
+  });
+
   it('the parser has teeth — a broken shader must throw', () => {
     expect(() => parse('void main() { gl_Position = vec4(0.0; }')).toThrow();
   });
@@ -43,8 +59,8 @@ describe('GLSL validation', () => {
     // `u_time * 1` (JS numbers render without a decimal point), which the
     // GPU compiler rejects: float * const int has no acceptable conversion.
     // A decimal point or exponent is mandatory on every numeric literal
-    // that follows an arithmetic operator.
-    const INT_IN_FLOAT = /[*/+-]\s*\d+(?![\d.])/g;
+    // that follows an arithmetic operator ("5.8e-6" exponents are exempt).
+    const INT_IN_FLOAT = /(?<![eE])[*/+-]\s*\d+(?![\d.])/g;
     for (const name of SHADERS) {
       const glsl = (shaders as unknown as Record<string, string>)[name];
       const hits = glsl!.match(INT_IN_FLOAT) ?? [];

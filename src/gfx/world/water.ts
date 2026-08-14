@@ -67,8 +67,7 @@ export class Water {
     gl.uniform3f(this.program.uniform('u_eye'), eye[0], eye[1], eye[2]);
     gl.uniform3f(this.program.uniform('u_sunDir'), atm.sunDir[0], atm.sunDir[1], atm.sunDir[2]);
     gl.uniform3f(this.program.uniform('u_sunColor'), atm.sunColor[0], atm.sunColor[1], atm.sunColor[2]);
-    gl.uniform3f(this.program.uniform('u_skyTop'), atm.skyTop[0], atm.skyTop[1], atm.skyTop[2]);
-    gl.uniform3f(this.program.uniform('u_horizon'), atm.skyHorizon[0], atm.skyHorizon[1], atm.skyHorizon[2]);
+    gl.uniform1f(this.program.uniform('u_sunIntensity'), atm.sunIntensity);
     gl.uniform3f(this.program.uniform('u_deep'), atm.waterDeep[0], atm.waterDeep[1], atm.waterDeep[2]);
     gl.uniform3f(this.program.uniform('u_mid'), atm.waterMid[0], atm.waterMid[1], atm.waterMid[2]);
     const tex = getProceduralTexture(this.gl, 'noise:water', {

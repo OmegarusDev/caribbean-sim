@@ -14,6 +14,53 @@ import { waveOctavesGLSL, waveChopGLSL, waveSwellGLSL } from '../world/waves';
 /** Instance record: model(16) stripe(3) flag(3) sailRatio(1) windLocal(2) phase(1). */
 export const SHIP_INSTANCE_STRIDE = 26;
 
+/**
+ * Single-scattering atmosphere — the physics that makes the sky real.
+ * Rayleigh scattering scales with 1/lambda^4 (blue sky, red sunset),
+ * transmittance is Beer-Lambert exp(-tau) along the view AND sun paths, and
+ * the sunset reddening falls out of the sun's own longer grazing path
+ * through the atmosphere. Evaluated by BOTH the sky pass and the water
+ * mirror: one atmosphere, two consumers — the sea reflects the same sky.
+ */
+const SKY_SCATTER_GLSL = `
+uniform vec3 u_sunDir;
+uniform vec3 u_sunColor;
+uniform float u_sunIntensity;
+
+const vec3 BETA_R = vec3(5.8e-6, 13.5e-6, 33.1e-6);
+const vec3 BETA_M = vec3(12.0e-6, 12.0e-6, 12.0e-6);
+const float SCALE_H_R = 8000.0;
+const float SCALE_H_M = 1500.0;
+const float SOLAR_E = 90000.0;
+const float MIE_MULT = 0.8;
+const float MIE_G = 0.76;
+
+float hgPhase(float mu) {
+  float g2 = MIE_G * MIE_G;
+  float denom = 4.0 * 3.14159265 * pow(1.0 + g2 - 2.0 * MIE_G * mu, 1.5);
+  return (1.0 - g2) / max(denom, 1e-4);
+}
+
+vec3 skyColor(vec3 dir) {
+  float mu = clamp(dot(dir, u_sunDir), -1.0, 1.0);
+  float viewH = max(dir.y, 0.02);
+  float sunH = max(u_sunDir.y, 0.02);
+  vec3 tauView = BETA_R * (SCALE_H_R / viewH) + BETA_M * (SCALE_H_M / viewH);
+  vec3 tauSun = BETA_R * (SCALE_H_R / sunH) + BETA_M * (SCALE_H_M / sunH);
+  vec3 tView = exp(-tauView);
+  vec3 tSun = exp(-tauSun);
+  float phaseR = 0.75 * (1.0 + mu * mu);
+  vec3 ray = BETA_R * phaseR * (1.0 - tView);
+  vec3 mie = BETA_M * hgPhase(mu) * (1.0 - tView);
+  vec3 col = (ray + mie * MIE_MULT) * tSun * u_sunColor * u_sunIntensity * SOLAR_E;
+  float disk = pow(max(mu, 0.0), 1500.0);
+  col += u_sunColor * tSun * disk * SOLAR_E * u_sunIntensity * 0.12;
+  // The camera, not the sky: a gentle filmic tone curve so the bright
+  // horizon haze and the deep zenith both read.
+  return vec3(1.0) - exp(-col * 1.15);
+}
+`;
+
 export const SHIP_VS = `${COMMON_HEAD}
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
@@ -183,15 +230,12 @@ in float v_swell;
 uniform float u_time;
 uniform float u_windDir;
 uniform vec3 u_eye;
-uniform vec3 u_sunDir;
-uniform vec3 u_sunColor;
-uniform vec3 u_skyTop;
-uniform vec3 u_horizon;
 uniform vec3 u_deep;
 uniform vec3 u_mid;
 uniform sampler2D u_tex;
 uniform sampler2D u_normFine;
 uniform sampler2D u_normCoarse;
+${SKY_SCATTER_GLSL}
 
 out vec4 frag;
 
@@ -224,12 +268,9 @@ void main() {
 
   float n = texture(u_tex, v_world.xz * 0.02).r;
 
-  // The mirror: the reflected sky carries the sun disk and its glow.
+  // The mirror: the same physical sky evaluated along the reflected ray.
   vec3 R = reflect(-V, N);
-  float skyH = R.y;
-  vec3 skyCol = mix(u_horizon, u_skyTop, smoothstep(0.0, 0.42, skyH));
-  float sd = max(dot(R, u_sunDir), 0.0);
-  skyCol += u_sunColor * (pow(sd, 8.0) * 0.22 + pow(sd, 420.0) * 1.5);
+  vec3 skyCol = skyColor(R);
 
   vec3 volume = mix(u_deep, u_mid, 0.55 + (n - 0.5) * 0.3);
   volume += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
@@ -256,9 +297,10 @@ void main() {
   float glitter = pow(max(H.y, 0.0), 24.0) * exp(-azDiff * 12.0);
   col += u_sunColor * (spec * fres + glitter * 0.55);
 
-  // Exponential haze: light scatters through the air column above the sea.
+  // Exponential haze into the physical horizon sky, not a flat colour.
   float haze = 1.0 - exp(-dist * 0.0013);
-  col = mix(col, u_horizon, clamp(haze, 0.0, 0.78));
+  vec3 horizonCol = skyColor(normalize(vec3(V.x, 0.04, V.z)));
+  col = mix(col, horizonCol, clamp(haze, 0.0, 0.78));
   frag = vec4(col, 1.0);
 }`;
 
@@ -273,14 +315,11 @@ void main() {
 export const SKY_FS = `${COMMON_HEAD}
 in vec2 v_uv;
 uniform mat4 u_invViewProj;
-uniform vec3 u_top;
-uniform vec3 u_horizon;
 uniform vec3 u_cloudColor;
-uniform vec3 u_sunDir;
-uniform vec3 u_sunColor;
 uniform float u_cloudCover;
 uniform float u_time;
 uniform sampler2D u_tex;
+${SKY_SCATTER_GLSL}
 
 out vec4 frag;
 
@@ -288,18 +327,21 @@ void main() {
   vec4 clip = vec4(v_uv * 2.0 - 1.0, -1.0, 1.0);
   vec4 w = u_invViewProj * clip;
   vec3 dir = normalize(w.xyz / w.w);
-  float h = dir.y;
-  vec3 col = mix(u_horizon, u_top, smoothstep(0.0, 0.4, h));
+  vec3 col = skyColor(dir);
 
-  // Luminous haze band at the horizon — the water mirror reflects it.
-  float band = exp(-abs(h) * 12.0);
-  col = mix(col, u_horizon * 1.3, band * 0.35);
-  col = mix(col, u_horizon * 0.6, smoothstep(0.02, -0.3, h) * 0.5);
+  // Clouds, lit from the sun's side, thinning as the light goes.
+  float mu = clamp(dot(dir, u_sunDir), 0.0, 1.0);
+  float light = 0.25 + 0.75 * u_sunIntensity;
   float c = texture(u_tex, dir.xz * 3.5 + vec2(u_time * 0.004, 0.0)).r;
-  col = mix(col, u_cloudColor, smoothstep(0.55, 0.95, c) * u_cloudCover);
-  float sd = max(dot(dir, u_sunDir), 0.0);
-  col += u_sunColor * pow(sd, 600.0) * 1.6;
-  col += u_sunColor * pow(sd, 10.0) * 0.1;
+  vec3 cloudTint = u_cloudColor * light + u_sunColor * pow(mu, 2.0) * 0.25;
+  col = mix(col, cloudTint, smoothstep(0.55, 0.95, c) * u_cloudCover * light);
+
+  // At night the sky shows the real stars, faint and sparse.
+  float night = 1.0 - u_sunIntensity;
+  vec3 fl = floor(dir * 600.0);
+  float h1 = fract(sin(dot(fl, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  float star = step(0.9965, h1) * (0.4 + 0.6 * fract(sin(fl.x * 91.17 + fl.y * 19.31 + fl.z * 53.13) * 9189.1));
+  col += vec3(0.6, 0.7, 1.0) * star * night * 0.9;
   frag = vec4(col, 1.0);
 }`;
 

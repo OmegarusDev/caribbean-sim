@@ -53,6 +53,7 @@ export class TitleScene implements Scene {
     if (!this.scene) {
       this.scene = new WorldScene(gl);
       this.scene.setWind(0.9);
+      this.scene.setEpoch(0.714);
       this.scene.camera.smoothDolly = 820;
       this.scene.camera.smoothPitch = 0.5;
       this.scene.camera.smoothYaw = 0;
