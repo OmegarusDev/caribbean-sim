@@ -29,8 +29,8 @@ export const DAY: Atmosphere = {
   fog: [0.24, 0.38, 0.48],
   fogStart: 800,
   fogEnd: 2500,
-  waterDeep: [0.012, 0.07, 0.105],
-  waterMid: [0.024, 0.14, 0.19],
+  waterDeep: [0.02, 0.1, 0.145],
+  waterMid: [0.055, 0.24, 0.3],
 };
 
 export const DUSK: Atmosphere = {

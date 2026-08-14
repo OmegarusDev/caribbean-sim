@@ -37,14 +37,18 @@ export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
   const phase = shipPhase(s.id);
   let pitch = Math.sin(opts.time * 0.8 + phase) * 0.018;
   let roll = Math.sin(opts.time * 0.9 + phase * 1.3) * 0.025;
-  let y = Math.sin(opts.time * 0.85 + phase) * 1.2 + (opts.extraY ?? 0);
+  // The hull must RIDE the water, not sit in it: without this lift the hull
+  // is below the opaque surface and only the masts show. Freeboard ≈ 9% of
+  // length; the keel stays deep below.
+  const lift = cls.length * 0.09;
+  let y = lift + Math.sin(opts.time * 0.85 + phase) * 1.2 + (opts.extraY ?? 0);
   if (s.sunk) {
     const amt = Math.min(1, (opts.sinkT ?? 0) / 12);
     pitch -= amt * 1.05;
     y -= amt * amt * 26;
   } else {
     const way = Math.min(1, s.speed / cls.baseSpeed);
-    roll += clamp(-s.rudder * way * 0.12, -0.28, 0.28);
+    roll += clamp(-s.rudder * way * 0.16, -0.32, 0.32);
   }
   return {
     id: s.id,
@@ -78,7 +82,7 @@ export function ringEntity(s: ShipState): WorldEntity {
     meshId: 'ring',
     x: s.x,
     z: s.y,
-    y: 0.2,
+    y: cls.length * 0.05,
     yaw: 0,
     pitch: 0,
     roll: 0,

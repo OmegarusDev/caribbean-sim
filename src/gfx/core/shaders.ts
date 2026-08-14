@@ -147,10 +147,11 @@ float wave(vec2 p, vec2 dir, float amp, float freq, float speed) {
 void main() {
   vec2 wp = u_center + aPos;
   float h = 0.0;
-  h += wave(wp, normalize(vec2(1.0, 0.35)), 3.2, 0.013, 1.4);
-  h += wave(wp, normalize(vec2(-0.7, 0.8)), 2.0, 0.021, 2.0);
-  h += wave(wp, normalize(vec2(0.25, -1.0)), 1.1, 0.034, 2.7);
-  h += wave(wp, normalize(vec2(0.9, 0.1)), 0.7, 0.05, 3.4);
+  h += wave(wp, normalize(vec2(1.0, 0.35)), 2.6, 0.011, 1.2);
+  h += wave(wp, normalize(vec2(-0.7, 0.8)), 1.7, 0.018, 1.8);
+  h += wave(wp, normalize(vec2(0.25, -1.0)), 1.1, 0.03, 2.5);
+  h += wave(wp, normalize(vec2(0.9, 0.1)), 0.8, 0.05, 3.2);
+  h += wave(wp, normalize(vec2(-0.3, 0.6)), 0.5, 0.085, 4.2);
   v_height = h;
   v_world = vec3(wp.x, h, wp.y);
   gl_Position = u_viewProj * vec4(v_world, 1.0);
@@ -171,18 +172,18 @@ out vec4 frag;
 
 void main() {
   vec3 col = mix(u_deep, u_mid, 0.55);
-  float swell = sin(v_world.x * 0.05) * sin(v_world.z * 0.043);
-  col *= 0.96 + 0.04 * swell;
+  float swell = sin(v_world.x * 0.045) * sin(v_world.z * 0.04);
+  col *= 0.95 + 0.05 * swell;
   float n = texture(u_tex, v_world.xz * 0.02).r;
-  col *= 0.94 + 0.1 * n;
-  float foam = smoothstep(2.4, 3.6, v_height);
-  col = mix(col, vec3(0.72, 0.84, 0.87), foam * (0.55 + 0.9 * n));
+  col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.4;
+  float foam = smoothstep(1.8, 3.0, v_height);
+  col = mix(col, vec3(0.78, 0.88, 0.9), foam * (0.5 + 0.9 * n));
   vec3 v = normalize(u_eye - v_world);
-  float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 80.0);
-  col += vec3(1.0, 0.92, 0.72) * spec * 0.9;
+  float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 90.0);
+  col += vec3(1.0, 0.93, 0.75) * spec * 1.0;
   float dist = length(u_eye - v_world);
-  float fog = clamp((dist - 700.0) / 2300.0, 0.0, 1.0);
-  col = mix(col, u_horizon, fog * 0.72);
+  float fog = clamp((dist - 900.0) / 2200.0, 0.0, 1.0);
+  col = mix(col, u_horizon, fog * 0.6);
   frag = vec4(col, 1.0);
 }`;
 
