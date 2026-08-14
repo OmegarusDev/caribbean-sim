@@ -622,7 +622,7 @@ button.danger {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: calc(var(--safe-bottom) + 60px);
   display: flex;
   justify-content: center;
   cursor: grab;
@@ -646,7 +646,7 @@ button.danger {
 }
 
 .wheel-spin {
-  transform-origin: 400px 900px;
+  transform-origin: 400px 700px;
 }
 
 .wheel-rim {
@@ -717,7 +717,7 @@ button.danger {
 
 .fire-ctl {
   position: absolute;
-  bottom: calc(var(--safe-bottom) + 212px);
+  bottom: calc(var(--safe-bottom) + 300px);
   left: 50%;
   transform: translateX(-50%);
   width: min(180px, 32vw);

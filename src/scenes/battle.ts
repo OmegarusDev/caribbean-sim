@@ -91,6 +91,8 @@ export class BattleScene implements Scene {
   private bannerEl: HTMLElement | null = null;
   private debugChip: HTMLElement | null = null;
   private debug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
+  private probeBuf = new Uint8Array(4);
+  private probe = '?';
 
   constructor(
     private readonly deps: BattleDeps,
@@ -238,6 +240,34 @@ export class BattleScene implements Scene {
     scene.setEntities(entities);
     scene.setParticles(this.fx.pool);
     scene.render(this.time);
+    if (this.debug) this.probeFrame(scene);
+  }
+
+  /**
+   * Render probe: read back the pixel at the first ship's screen position.
+   * Hulls are wood-coloured (r > 60); water is near-black (r < 30). A
+   * missing r means the entity pipeline drew nothing — a silent GPU bug
+   * that gl.getError() can never catch.
+   */
+  private probeFrame(scene: WorldScene): void {
+    const gl = this.deps.gl;
+    if (!gl) return;
+    const ship = this.battle.ships.find((x) => !x.sunk);
+    if (!ship) {
+      this.probe = 'no-ship';
+      return;
+    }
+    projectToNdc(ndcScratch, vec3(ship.x, 6, ship.y), scene.camera.getViewProj());
+    const px = ((ndcScratch[0]! + 1) * 0.5 * this.lastW) * gl.dpr;
+    const py = ((1 - ndcScratch[1]!) * 0.5 * this.lastH) * gl.dpr;
+    const bw = gl.gl.drawingBufferWidth;
+    const bh = gl.gl.drawingBufferHeight;
+    if (px < 0 || py < 0 || px >= bw || py >= bh) {
+      this.probe = 'offscreen';
+      return;
+    }
+    gl.gl.readPixels(Math.floor(px), Math.floor(bh - py), 1, 1, gl.gl.RGBA, gl.gl.UNSIGNED_BYTE, this.probeBuf);
+    this.probe = this.probeBuf[0]! < 40 ? 'EMPTY-SHIP!' : `ok(${this.probeBuf[0]})`;
   }
 
   private registerShips(scene: WorldScene): void {
@@ -617,7 +647,7 @@ export class BattleScene implements Scene {
         const err = gl.gl.getError();
         const renderer = String(gl.gl.getParameter(gl.gl.RENDERER) ?? '?');
         const cam = this.scene?.camera;
-        info = `${renderer} · err:${err} · ${this.lastW}×${this.lastH} · dolly:${cam ? Math.round(cam.dolly) : 0} · ships:${this.battle.ships.filter((s) => !s.sunk).length}`;
+        info = `${renderer} · err:${err} · ${this.lastW}×${this.lastH} · dolly:${cam ? Math.round(cam.dolly) : 0} · ships:${this.battle.ships.filter((s) => !s.sunk).length} · probe:${this.probe}`;
       } else if (gl?.lost) {
         info = 'CONTEXT LOST';
       }

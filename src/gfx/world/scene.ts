@@ -107,7 +107,7 @@ export class WorldScene {
     this.water.draw(this.camera, this.atmosphere, time);
     this.sky.draw(this.camera, this.atmosphere, time);
 
-    this.drawEntities();
+    this.drawEntities(time);
 
     if (this.particles) {
       this.fx3d.setParticles(this.particles);
@@ -115,7 +115,7 @@ export class WorldScene {
     }
   }
 
-  private drawEntities(): void {
+  private drawEntities(time: number): void {
     const gl = this.gl.gl;
     // Shared procedural detail texture for materials (sails, hull, flags).
     const detail = getProceduralTexture(this.gl, 'noise:detail', {
@@ -139,6 +139,8 @@ export class WorldScene {
       if (list) list.push(e);
       else byMesh.set(e.meshId, [e]);
     }
+    const eye = this.camera.eyeWorld();
+    const a = this.atmosphere;
     for (const [meshId, list] of byMesh) {
       const batch = this.meshes.get(meshId);
       if (!batch) continue;
@@ -152,17 +154,31 @@ export class WorldScene {
         composeRigid(this.model, e.x, e.y, e.z, yaw, e.pitch, e.roll, e.scale);
         writeInstance(batch.data, i, e, this.model);
       }
+      // Per-frame uniforms for the batch program. Uniforms persist on the
+      // program once set, so setting them before drawInstanced (which
+      // re-uses the same program) applies to the draw. Unused uniforms are
+      // optimized out and skipped.
+      const prog = batch.program;
+      prog.use();
+      gl.uniformMatrix4fv(prog.uniform('u_viewProj'), false, this.camera.getViewProj());
+      gl.uniform1f(prog.uniform('u_time'), time);
+      gl.uniform3f(prog.uniform('u_eye'), eye[0], eye[1], eye[2]);
+      gl.uniform3f(prog.uniform('u_lightDir'), a.sunDir[0], a.sunDir[1], a.sunDir[2]);
+      gl.uniform3f(prog.uniform('u_fog'), a.fog[0], a.fog[1], a.fog[2]);
+      gl.uniform1f(prog.uniform('u_fogStart'), a.fogStart);
+      gl.uniform1f(prog.uniform('u_fogEnd'), a.fogEnd);
+      gl.uniform1i(prog.uniform('u_tex'), 0);
       if (batch.blend) {
-        this.gl.gl.enable(this.gl.gl.BLEND);
-        this.gl.gl.blendFunc(this.gl.gl.SRC_ALPHA, this.gl.gl.ONE_MINUS_SRC_ALPHA);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       }
       batch.mesh.drawInstanced(
-        this.gl.gl,
+        gl,
         batch.program,
         list.length,
         batch.data.subarray(0, needed),
       );
-      if (batch.blend) this.gl.gl.disable(this.gl.gl.BLEND);
+      if (batch.blend) gl.disable(gl.BLEND);
     }
   }
 

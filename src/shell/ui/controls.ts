@@ -11,8 +11,8 @@
 
 const WHEEL_MAX_DEG = 55;
 const WHEEL_CX = 400;
-const WHEEL_CY = 900;
-const WHEEL_R = 880;
+const WHEEL_CY = 700;
+const WHEEL_R = 680;
 
 export class WheelControl {
   readonly el: HTMLElement;
@@ -29,7 +29,7 @@ export class WheelControl {
     // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 0 800 110" aria-hidden="true">
+        <svg viewBox="0 0 800 130" aria-hidden="true">
           <g class="wheel-spin">
             <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R + 18}" class="wheel-rim"/>
             ${this.spokes()}
