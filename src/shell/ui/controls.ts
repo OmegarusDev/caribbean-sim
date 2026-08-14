@@ -1,13 +1,18 @@
 /**
  * Helm controls — the ship's wheel, the sail slider, and the fire button.
  *
- * The wheel is a full 8-spoke wheel drawn in SVG and clipped to its top arc,
- * so dragging (or scrolling) spins the spokes exactly like a real helm viewed
- * from behind. The wheel stays where you leave it — a ship's wheel has no
- * spring. Sail slider: vertical, top = full sail.
+ * The wheel is the shallow top arc of a HUGE wheel whose centre sits far
+ * below the screen — it spans the whole bottom edge. Dragging (or scrolling)
+ * rotates the spokes and pegs exactly like a real helm: a big wheel turns
+ * little for full lock, so a complete rudder is a modest sweep of the
+ * visible spokes. The wheel stays where you leave it — no spring.
+ * Sail slider: vertical, top = full sail.
  */
 
-const WHEEL_MAX_DEG = 100;
+const WHEEL_MAX_DEG = 55;
+const WHEEL_CX = 400;
+const WHEEL_CY = 900;
+const WHEEL_R = 880;
 
 export class WheelControl {
   readonly el: HTMLElement;
@@ -21,16 +26,15 @@ export class WheelControl {
     this.el = document.createElement('div');
     this.el.className = 'wheel-ctl';
     // The el is the wide drag surface (full deflection at the screen edge);
-    // the graphic is a fixed-width wheel centered inside it.
+    // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 0 240 150" aria-hidden="true">
+        <svg viewBox="0 0 800 110" aria-hidden="true">
           <g class="wheel-spin">
-            <circle cx="120" cy="115" r="98" class="wheel-rim"/>
-            <circle cx="120" cy="115" r="13" class="wheel-hub"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R + 18}" class="wheel-rim"/>
             ${this.spokes()}
           </g>
-          <polygon class="wheel-pointer" points="120,4 113,16 127,16"/>
+          <polygon class="wheel-pointer" points="400,4 391,18 409,18"/>
         </svg>
       </div>`;
     this.spin = this.el.querySelector('.wheel-spin');
@@ -38,16 +42,13 @@ export class WheelControl {
   }
 
   private spokes(): string {
-    const cx = 120;
-    const cy = 115;
-    const r = 88;
     const out: string[] = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r;
+    for (let i = 0; i < 16; i++) {
+      const a = (i * Math.PI) / 8;
+      const x = WHEEL_CX + Math.cos(a) * WHEEL_R;
+      const y = WHEEL_CY - Math.sin(a) * WHEEL_R;
       out.push(
-        `<line class="wheel-spoke" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`,
+        `<line class="wheel-spoke" x1="${WHEEL_CX}" y1="${WHEEL_CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`,
         `<circle class="wheel-peg" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7"/>`,
       );
     }
