@@ -28,7 +28,8 @@ describe('shared wave field', () => {
     for (const w of OCEAN_WAVES) {
       expect(WATER_VS).toContain(`* ${w.amp};`);
       expect(WATER_VS).toContain(`* ${w.freq}`);
-      expect(WATER_VS).toContain(`* ${w.speed.toFixed(1)})`);
+      const sp = w.speed === 1 ? '1.0' : String(w.speed);
+      expect(WATER_VS).toContain(`* ${sp})`);
     }
   });
 });
