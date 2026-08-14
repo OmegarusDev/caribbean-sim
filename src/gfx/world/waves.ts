@@ -48,12 +48,18 @@ export function waveHeight(x: number, z: number, t: number, windDir: number): nu
   return h;
 }
 
+/**
+ * GLSL has no implicit int->float conversion (ANGLE rejects `u_time * 1`).
+ * Every number emitted into a shader must carry a decimal point.
+ */
+const f = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+
 /** The wave field as GLSL height octaves (wind-relative), for the water shader. */
 export function waveOctavesGLSL(): string {
   let out = '';
   for (const w of OCEAN_WAVES) {
     out +=
-      `  h += sin(dot(p, vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)}))) * ${w.freq} + u_time * ${w.speed}) * ${w.amp};\n`;
+      `  h += sin(dot(p, vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)}))) * ${w.freq} + u_time * ${f(w.speed)}) * ${f(w.amp)};\n`;
   }
   return out;
 }
@@ -64,7 +70,7 @@ export function waveChopGLSL(): string {
   for (const w of OCEAN_WAVES) {
     if (w.q > 0) {
       out +=
-        `  p += vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)})) * cos(dot(p, vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)}))) * ${w.freq} + u_time * ${w.speed}) * ${w.amp} * ${w.q};\n`;
+        `  p += vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)})) * cos(dot(p, vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)}))) * ${w.freq} + u_time * ${f(w.speed)}) * ${f(w.amp)} * ${f(w.q)};\n`;
     }
   }
   return out;
@@ -79,7 +85,7 @@ export function waveSwellGLSL(): string {
   for (const w of OCEAN_WAVES) {
     if (w.q === 0) {
       out +=
-        `  s += sin(dot(p, vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)}))) * ${w.freq} + u_time * ${w.speed}) * ${w.amp};\n`;
+        `  s += sin(dot(p, vec2(cos(wind + ${w.rel.toFixed(3)}), sin(wind + ${w.rel.toFixed(3)}))) * ${w.freq} + u_time * ${f(w.speed)}) * ${f(w.amp)};\n`;
     }
   }
   return out;

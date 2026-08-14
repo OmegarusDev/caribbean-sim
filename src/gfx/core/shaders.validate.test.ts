@@ -38,6 +38,20 @@ describe('GLSL validation', () => {
     expect(() => parse('void main() { gl_Position = vec4(0.0; }')).toThrow();
   });
 
+  it('no integer literals in float contexts — ANGLE has no int->float coercion', () => {
+    // The black screen this catches: generated shaders emitted `* 2;` and
+    // `u_time * 1` (JS numbers render without a decimal point), which the
+    // GPU compiler rejects: float * const int has no acceptable conversion.
+    // A decimal point or exponent is mandatory on every numeric literal
+    // that follows an arithmetic operator.
+    const INT_IN_FLOAT = /[*/+-]\s*\d+(?![\d.])/g;
+    for (const name of SHADERS) {
+      const glsl = (shaders as unknown as Record<string, string>)[name];
+      const hits = glsl!.match(INT_IN_FLOAT) ?? [];
+      expect(hits, `${name} has integer literals in float contexts: ${hits.join(', ')}`).toEqual([]);
+    }
+  });
+
   it('the wave field is fully embedded in the compiled water vertex shader', async () => {
     // The height octaves, the Gerstner chop, and the swell pair all reach
     // the shader via the emitters — the gate must verify the complete text.
