@@ -134,29 +134,31 @@ layout(location=0) in vec3 aPos;
 
 uniform vec2 u_center;
 uniform float u_time;
+uniform float u_windDir;
 uniform mat4 u_viewProj;
 
 out vec3 v_world;
 out vec3 v_normal;
 out float v_height;
 
-float heightAt(vec2 p) {
+float heightAt(vec2 p, float wind) {
   float h = 0.0;
-  h += sin(dot(p, vec2(0.943858, 0.330350)) * 0.004 + u_time * 0.35) * 0.9;
-  h += sin(dot(p, vec2(-0.658505, 0.752577)) * 0.0065 + u_time * 0.5) * 0.6;
-  h += sin(dot(p, vec2(0.242536, -0.970143)) * 0.011 + u_time * 0.7) * 0.35;
-  h += sin(dot(p, vec2(0.993884, 0.110432)) * 0.02 + u_time * 1.0) * 0.22;
-  h += sin(dot(p, vec2(-0.447214, 0.894427)) * 0.038 + u_time * 1.4) * 0.14;
+  h += sin(dot(p, vec2(cos(wind + 0.300), sin(wind + 0.300))) * 0.002 + u_time * 0.2) * 2.0;
+  h += sin(dot(p, vec2(cos(wind - 0.900), sin(wind - 0.900))) * 0.004 + u_time * 0.35) * 0.9;
+  h += sin(dot(p, vec2(cos(wind + 1.800), sin(wind + 1.800))) * 0.0065 + u_time * 0.5) * 0.6;
+  h += sin(dot(p, vec2(cos(wind - 2.400), sin(wind - 2.400))) * 0.011 + u_time * 0.7) * 0.35;
+  h += sin(dot(p, vec2(cos(wind + 0.600), sin(wind + 0.600))) * 0.02 + u_time * 1.0) * 0.22;
+  h += sin(dot(p, vec2(cos(wind - 1.200), sin(wind - 1.200))) * 0.038 + u_time * 1.4) * 0.14;
   return h;
 }
 
 void main() {
   vec2 wp = u_center + aPos.xz;
-  float h = heightAt(wp);
+  float h = heightAt(wp, u_windDir);
   // Analytic surface slope via central differences of the same field.
   float e = 6.0;
-  float hx = heightAt(wp + vec2(e, 0.0)) - heightAt(wp - vec2(e, 0.0));
-  float hz = heightAt(wp + vec2(0.0, e)) - heightAt(wp - vec2(0.0, e));
+  float hx = heightAt(wp + vec2(e, 0.0), u_windDir) - heightAt(wp - vec2(e, 0.0), u_windDir);
+  float hz = heightAt(wp + vec2(0.0, e), u_windDir) - heightAt(wp - vec2(0.0, e), u_windDir);
   v_normal = normalize(vec3(-hx, 2.0 * e, -hz));
   v_height = h;
   v_world = vec3(wp.x, h, wp.y);
@@ -170,6 +172,8 @@ in float v_height;
 
 uniform vec3 u_eye;
 uniform vec3 u_sunDir;
+uniform vec3 u_sunColor;
+uniform vec3 u_skyTop;
 uniform vec3 u_horizon;
 uniform vec3 u_deep;
 uniform vec3 u_mid;
@@ -178,30 +182,35 @@ uniform sampler2D u_tex;
 out vec4 frag;
 
 void main() {
-  vec3 col = mix(u_deep, u_mid, 0.55);
-  float n = texture(u_tex, v_world.xz * 0.02).r;
-  col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
-
+  // The sea is a mirror: base colour is the sky reflected in the surface,
+  // mixed with the water's own volume by Fresnel.
   vec3 N = normalize(v_normal);
   vec3 V = normalize(u_eye - v_world);
+  vec3 R = reflect(-V, N);
+  float skyH = R.y;
+  vec3 skyCol = mix(u_horizon, u_skyTop, smoothstep(0.0, 0.4, skyH));
+  float sd = max(dot(R, u_sunDir), 0.0);
+  skyCol += u_sunColor * pow(sd, 10.0) * 0.08;
+
+  vec3 col = mix(u_deep, u_mid, 0.55);
+  float fres = pow(1.0 - max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 4.0);
+  col = mix(col, skyCol, clamp(fres * 1.1, 0.0, 0.85));
+
+  float n = texture(u_tex, v_world.xz * 0.02).r;
+  col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
 
   // Foam where the surface is steep (breaking) and on the tallest crests.
   float steep = clamp(1.0 - N.y, 0.0, 1.0);
   float foam = smoothstep(0.15, 0.4, steep) * 0.6 + smoothstep(0.9, 1.6, v_height) * 0.5;
   col = mix(col, vec3(0.78, 0.88, 0.9), clamp(foam, 0.0, 1.0) * (0.4 + 0.8 * n));
 
-  // Fresnel: grazing water mirrors the sky — the wet look.
-  float fres = pow(1.0 - max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 4.0);
-  col = mix(col, u_horizon, fres * 0.5);
-
   // Sun glitter: a tight sparkle from the wave normals, plus the
   // elongated glitter path beneath the sun — real water's tell.
-  vec3 R = reflect(-u_sunDir, N);
-  float spec = pow(max(dot(R, V), 0.0), 160.0);
+  float spec = pow(max(dot(reflect(-u_sunDir, N), V), 0.0), 160.0);
   vec3 H = normalize(u_sunDir + V);
   float azDiff = 1.0 - abs(dot(normalize(H.xz), normalize(vec2(1.0, 0.35))));
   float glitter = pow(max(H.y, 0.0), 30.0) * exp(-azDiff * 14.0);
-  col += vec3(1.0, 0.93, 0.75) * (spec * 0.7 + glitter * 0.5);
+  col += u_sunColor * (spec * 0.7 + glitter * 0.5);
 
   float dist = length(u_eye - v_world);
   float fog = clamp((dist - 900.0) / 2200.0, 0.0, 1.0);

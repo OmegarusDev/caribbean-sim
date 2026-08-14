@@ -77,8 +77,11 @@ export class WorldScene {
     this.particles = particles;
   }
 
+  private windDir = 0;
+
   /** Align the sun with the wind for consistent water/sail lighting. */
   setWind(dir: number): void {
+    this.windDir = dir;
     const a = this.atmosphere;
     const len = Math.hypot(Math.cos(dir) * 0.5, 0.55, Math.sin(dir) * 0.5) || 1;
     a.sunDir[0] = (Math.cos(dir) * 0.5) / len;
@@ -104,7 +107,7 @@ export class WorldScene {
     gl.clearColor(this.atmosphere.skyTop[0], this.atmosphere.skyTop[1], this.atmosphere.skyTop[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    this.water.draw(this.camera, this.atmosphere, time);
+    this.water.draw(this.camera, this.atmosphere, time, this.windDir);
     this.sky.draw(this.camera, this.atmosphere, time);
 
     this.drawEntities(time);

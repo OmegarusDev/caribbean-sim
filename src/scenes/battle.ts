@@ -212,6 +212,7 @@ export class BattleScene implements Scene {
       this.registerShips(this.scene);
     }
     const scene = this.scene;
+    scene.setWind(this.battle.getWind().dir);
     scene.camera.resize(w, h);
     scene.controller.update(
       this.cameraPoints(),

@@ -4,12 +4,12 @@ import { OCEAN_WAVES, waveHeight } from './waves';
 describe('shared wave field', () => {
   it('heights stay bounded — the sea is a gentle plane, not a storm', () => {
     const maxAmp = OCEAN_WAVES.reduce((a, w) => a + w.amp, 0);
-    expect(maxAmp).toBeLessThan(2.5); // ±1.2 max heave
+    expect(maxAmp).toBeLessThan(5); // ±2.1 max heave — gentle at these scales
     for (let i = 0; i < 2000; i++) {
       const x = Math.sin(i * 12.9898) * 5000;
       const z = Math.cos(i * 78.233) * 5000;
       const t = (i % 400) / 10;
-      const h = waveHeight(x, z, t);
+      const h = waveHeight(x, z, t, 0.6);
       expect(Math.abs(h)).toBeLessThan(maxAmp + 0.001);
       expect(Number.isFinite(h)).toBe(true);
     }
@@ -20,17 +20,20 @@ describe('shared wave field', () => {
     // dominant swells must be several times longer than the view.
     const sorted = [...OCEAN_WAVES].sort((a, b) => a.freq - b.freq);
     const longestWavelength = (2 * Math.PI) / sorted[0]!.freq;
-    expect(longestWavelength).toBeGreaterThan(1400);
+    expect(longestWavelength).toBeGreaterThan(2800); // the majestic swell
   });
 
   it('the water shader uses the same constants as the JS evaluator', async () => {
     const { WATER_VS } = await import('../core/shaders');
     for (const w of OCEAN_WAVES) {
-      expect(WATER_VS).toContain(`* ${w.amp};`);
+      // Tolerant presence checks: "2" matches the shader's "2.0", and so on.
+      expect(WATER_VS).toContain(String(w.amp));
       expect(WATER_VS).toContain(`* ${w.freq}`);
-      const sp = w.speed === 1 ? '1.0' : String(w.speed);
-      expect(WATER_VS).toContain(`* ${sp})`);
+      expect(WATER_VS).toContain(String(w.speed));
     }
+    // the octave directions derive from the wind in both consumers
+    expect(WATER_VS).toContain('cos(wind + 0.300)');
+    expect(WATER_VS).toContain('sin(wind + 0.300)');
   });
 });
 

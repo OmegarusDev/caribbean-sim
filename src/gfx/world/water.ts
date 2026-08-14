@@ -53,10 +53,11 @@ export class Water {
     });
   }
 
-  draw(cam: Camera3d, atm: Atmosphere, time: number): void {
+  draw(cam: Camera3d, atm: Atmosphere, time: number, windDir: number): void {
     const gl = this.gl.gl;
     this.program.use();
     gl.uniformMatrix4fv(this.program.uniform('u_viewProj'), false, cam.getViewProj());
+    gl.uniform1f(this.program.uniform('u_windDir'), windDir);
     this.uCenter[0] = Math.round(cam.targetX / HALF) * HALF;
     this.uCenter[1] = Math.round(cam.targetZ / HALF) * HALF;
     gl.uniform2fv(this.program.uniform('u_center'), this.uCenter);
@@ -64,6 +65,8 @@ export class Water {
     const eye = cam.eyeWorld();
     gl.uniform3f(this.program.uniform('u_eye'), eye[0], eye[1], eye[2]);
     gl.uniform3f(this.program.uniform('u_sunDir'), atm.sunDir[0], atm.sunDir[1], atm.sunDir[2]);
+    gl.uniform3f(this.program.uniform('u_sunColor'), atm.sunColor[0], atm.sunColor[1], atm.sunColor[2]);
+    gl.uniform3f(this.program.uniform('u_skyTop'), atm.skyTop[0], atm.skyTop[1], atm.skyTop[2]);
     gl.uniform3f(this.program.uniform('u_horizon'), atm.skyHorizon[0], atm.skyHorizon[1], atm.skyHorizon[2]);
     gl.uniform3f(this.program.uniform('u_deep'), atm.waterDeep[0], atm.waterDeep[1], atm.waterDeep[2]);
     gl.uniform3f(this.program.uniform('u_mid'), atm.waterMid[0], atm.waterMid[1], atm.waterMid[2]);

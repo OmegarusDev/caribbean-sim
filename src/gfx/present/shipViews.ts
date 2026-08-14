@@ -42,10 +42,10 @@ export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
   // the sea instead of bobbing on an unrelated sine.
   const L = cls.length;
   const stepL = L * 0.3;
-  const yFwd = waveHeight(s.x + Math.cos(s.heading) * stepL, s.y + Math.sin(s.heading) * stepL, time);
-  const yAft = waveHeight(s.x - Math.cos(s.heading) * stepL, s.y - Math.sin(s.heading) * stepL, time);
-  const yStb = waveHeight(s.x - Math.sin(s.heading) * stepL, s.y + Math.cos(s.heading) * stepL, time);
-  const yPor = waveHeight(s.x + Math.sin(s.heading) * stepL, s.y - Math.cos(s.heading) * stepL, time);
+  const yFwd = waveHeight(s.x + Math.cos(s.heading) * stepL, s.y + Math.sin(s.heading) * stepL, time, opts.windDir);
+  const yAft = waveHeight(s.x - Math.cos(s.heading) * stepL, s.y - Math.sin(s.heading) * stepL, time, opts.windDir);
+  const yStb = waveHeight(s.x - Math.sin(s.heading) * stepL, s.y + Math.cos(s.heading) * stepL, time, opts.windDir);
+  const yPor = waveHeight(s.x + Math.sin(s.heading) * stepL, s.y - Math.cos(s.heading) * stepL, time, opts.windDir);
   let pitch = Math.atan2(yFwd - yAft, stepL * 2) * 0.8;
   let roll = Math.atan2(yStb - yPor, stepL * 2) * 0.8;
   // Small residual life — the sea is never perfectly rigid.
@@ -55,7 +55,7 @@ export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
   // is below the opaque surface and only the masts show. Freeboard ≈ 9% of
   // length; the keel stays deep below.
   const lift = cls.length * 0.09;
-  let y = lift + waveHeight(s.x, s.y, time) + Math.sin(time * 0.55 + phase) * 0.25 + (opts.extraY ?? 0);
+  let y = lift + waveHeight(s.x, s.y, time, opts.windDir) + Math.sin(time * 0.55 + phase) * 0.25 + (opts.extraY ?? 0);
   if (s.sunk) {
     const amt = Math.min(1, (opts.sinkT ?? 0) / 12);
     pitch -= amt * 1.05;
