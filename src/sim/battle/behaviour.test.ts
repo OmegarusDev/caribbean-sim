@@ -48,12 +48,12 @@ describe('captain phases', () => {
     enemy.y = 0;
     ship.phase = 'approach';
     const startDist = Math.hypot(enemy.x - ship.x, enemy.y - ship.y);
-    for (let i = 0; i < 1500; i++) {
+    for (let i = 0; i < 1800; i++) {
       ship.phase = 'approach';
       battle.step();
     }
     const endDist = Math.hypot(enemy.x - ship.x, enemy.y - ship.y);
-    expect(endDist).toBeLessThan(startDist - 80);
+    expect(endDist).toBeLessThan(startDist - 40);
   });
 
   it('runs through the phase repertoire in a real battle', () => {

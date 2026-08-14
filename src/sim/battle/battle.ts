@@ -683,6 +683,7 @@ function createShip(
     speed: 0,
     sailState: 1,
     rudder: 0,
+    rudderSmoothed: 0,
     hull: cls.maxHull,
     maxHull: cls.maxHull,
     sails: cls.maxSails,
@@ -752,6 +753,11 @@ export function rotateToward(current: number, target: number, maxDelta: number):
 /**
  * One tick of ship kinematics — exported so tests can verify the steering
  * contract: in steady state the hull faces its course (heading ≈ velocity).
+ *
+ * Feel model:
+ *  - acceleration falls off as the ship nears hull speed (drag grows)
+ *  - the helm lags the rudder demand — steering has weight
+ *  - dead upwind is nearly impossible — ships must tack
  */
 export function applyShipPhysics(
   ship: ShipState,
@@ -761,20 +767,27 @@ export function applyShipPhysics(
   const cls = HULL_CLASSES[ship.hullClass];
   const dt = BATTLE_TICK;
 
+  // Helm lag: the actual rudder angle eases toward the demand.
+  ship.rudderSmoothed +=
+    (ship.rudder - ship.rudderSmoothed) * Math.min(1, dt * 2.2);
+
   const hvx = Math.cos(ship.heading);
   const hvy = Math.sin(ship.heading);
   const along = ship.vx * hvx + ship.vy * hvy;
 
   const app = Math.cos(ship.heading - windDir);
   let windFactor = 0.35 + 0.65 * clamp01((1 + app) / 2);
-  if (app < -0.5) windFactor *= 0.3;
+  // Dead upwind (within ~37deg of the wind's eye): almost no drive — tack.
+  if (app < -0.8) windFactor *= 0.06;
   const sailFactor = ship.grappledWith !== null ? 0 : 0.2 + 0.8 * ship.sailState;
   const hullFactor = 0.75 + 0.25 * (ship.hull / cls.maxHull);
   let targetSpeed =
     cls.baseSpeed * (0.3 + 0.7 * windStrength) * windFactor * sailFactor * hullFactor;
   if (ship.grappledWith !== null) targetSpeed = 0;
 
-  const newAlong = approach(along, targetSpeed, cls.accel * dt);
+  // Drag: brisk from rest, gentle near hull speed.
+  const drag = 1.25 - 0.8 * clamp01(along / Math.max(1, targetSpeed));
+  const newAlong = approach(along, targetSpeed, cls.accel * drag * dt);
   const latX = ship.vx - hvx * along;
   const latY = ship.vy - hvy * along;
   const latDamp = Math.exp(-DRIFT * dt);
@@ -782,7 +795,8 @@ export function applyShipPhysics(
   ship.vy = hvy * newAlong + latY * latDamp;
 
   const way = clamp01(Math.abs(newAlong) / cls.baseSpeed);
-  const turn = clamp(ship.rudder, -1, 1) * cls.turnRate * (0.25 + 0.75 * way) * dt;
+  const turn =
+    clamp(ship.rudderSmoothed, -1, 1) * cls.turnRate * (0.25 + 0.75 * way) * dt;
   ship.heading = normalizeAngle(ship.heading + turn);
 
   ship.x += ship.vx * dt;

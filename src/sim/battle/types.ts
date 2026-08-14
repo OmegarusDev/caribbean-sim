@@ -58,6 +58,8 @@ export interface ShipState {
   speed: number;
   sailState: number;
   rudder: number;
+  /** Actual helm angle — lags the demand so steering has weight. */
+  rudderSmoothed: number;
   hull: number;
   maxHull: number;
   sails: number;

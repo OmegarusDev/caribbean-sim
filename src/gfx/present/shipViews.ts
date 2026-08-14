@@ -84,6 +84,7 @@ export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
       : Math.max(0.08, (s.sails / s.maxSails) * (0.3 + 0.7 * s.sailState)),
     windLocal: [Math.cos(opts.windDir - s.heading), Math.sin(opts.windDir - s.heading)],
     phase,
+    speed: s.speed,
     visible: true,
   };
 }
@@ -107,6 +108,7 @@ export function ringEntity(s: ShipState): WorldEntity {
     sailRatio: 1,
     windLocal: [0, 0],
     phase: 0,
+    speed: 0,
     visible: true,
   };
 }
@@ -134,6 +136,7 @@ export function makePreviewShip(
     speed: 0,
     sailState: 1,
     rudder: 0,
+    rudderSmoothed: 0,
     hull: cls.maxHull,
     maxHull: cls.maxHull,
     sails: cls.maxSails,

@@ -20,6 +20,8 @@ export interface WorldEntity {
   sailRatio: number;
   windLocal: [number, number];
   phase: number;
+  /** Current speed — drives wakes and spray. */
+  speed: number;
   visible: boolean;
 }
 
