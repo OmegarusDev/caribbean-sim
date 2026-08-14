@@ -7,26 +7,32 @@
  * little for full lock, so a complete rudder is a modest sweep of the
  * visible spokes. The wheel stays where you leave it — no spring.
  *
- * The helm is drawn like a real ship's wheel: a thick wooden rail whose
- * polished lip catches the light (radial wood gradient), twelve tapered
- * spokes mortised through it, and hand-grips sticking out past the rim.
- * It glides to the helm's position rather than snapping — a heavy wheel.
+ * Drawn from the anatomy of a real ship's wheel (teak/mahogany):
+ *  - the rim is THREE stacked felloes — the after (rearmost), the middle
+ *    (the layer each spoke runs through) and the facing (toward the
+ *    helmsman) — each ring catching its own light, with dark seams;
+ *  - baluster-shaped spokes (turned, swelling toward the rim);
+ *  - the spokes protrude past the rim as handles, capped with turned
+ *    elliptical knobs;
+ *  - the king spoke carries banded grips a helmsman feels in the dark to
+ *    find dead centre.
+ *
+ * The cast shadow is a SEPARATE layer, driven by the sun relative to the
+ * ship's heading (setCast) — the plumbing is real, the effect stays simple.
  * Sail slider: vertical, top = full sail.
  */
 
 const WHEEL_MAX_DEG = 55;
 const WHEEL_CX = 400;
 const WHEEL_CY = 700;
-const WHEEL_R = 676;
+const WHEEL_R = 678;
 const WHEEL_SPOKES = 12;
-const RAIL_IN = 650;
-const GRIP_IN = 678;
-const GRIP_OUT = 698;
 
 export class WheelControl {
   readonly el: HTMLElement;
   value = 0; // -1..1 → rudder
   private spin: SVGElement | null = null;
+  private shadow: SVGElement | null = null;
   private dragging = false;
   private readonly onChange: (v: number) => void;
 
@@ -38,64 +44,118 @@ export class WheelControl {
     // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 0 800 142" aria-hidden="true">
+        <svg viewBox="0 0 800 150" aria-hidden="true">
           <defs>
-            <radialGradient id="wheelRailWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
-              <stop offset="0.961" stop-color="#3a2614"/>
-              <stop offset="0.985" stop-color="#8a5a2d"/>
-              <stop offset="0.998" stop-color="#6a4522"/>
+            <radialGradient id="wheelRimWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
+              <stop offset="0.955" stop-color="#241708"/>
+              <stop offset="0.963" stop-color="#3f2a15"/>
+              <stop offset="0.972" stop-color="#6a4522"/>
+              <stop offset="0.977" stop-color="#2a1c0e"/>
+              <stop offset="0.982" stop-color="#5a3a1c"/>
+              <stop offset="0.990" stop-color="#8a5a2d"/>
+              <stop offset="0.997" stop-color="#6a4522"/>
               <stop offset="1" stop-color="#241708"/>
             </radialGradient>
             <radialGradient id="wheelFarShade" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
               <stop offset="0.9" stop-color="#000" stop-opacity="0"/>
-              <stop offset="1" stop-color="#000" stop-opacity="0.4"/>
+              <stop offset="1" stop-color="#000" stop-opacity="0.42"/>
+            </radialGradient>
+            <radialGradient id="wheelCastShadow" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="134" r="300">
+              <stop offset="0" stop-color="#000" stop-opacity="0.34"/>
+              <stop offset="0.6" stop-color="#000" stop-opacity="0.16"/>
+              <stop offset="0.85" stop-color="#000" stop-opacity="0.07"/>
+              <stop offset="1" stop-color="#000" stop-opacity="0"/>
             </radialGradient>
           </defs>
+          <g class="wheel-shadow" data-wheel-shadow>
+            <ellipse cx="${WHEEL_CX}" cy="134" rx="330" ry="16" class="wheel-cast"/>
+          </g>
           <g class="wheel-spin">
             <g class="wheel-spokes">${this.spokes()}</g>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}" class="wheel-rail"/>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${RAIL_IN}" class="wheel-rail-inner"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="674" class="wheel-felloe-after"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="665" class="wheel-felloe-middle"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="654" class="wheel-felloe-facing"/>
             <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}" class="wheel-far-shade"/>
-            <g class="wheel-grips">${this.grips()}</g>
+            <g class="wheel-handles">${this.handles()}</g>
           </g>
-          <polygon class="wheel-pointer" points="400,6 389,20 411,20"/>
-          <line class="wheel-pointer-line" x1="400" y1="20" x2="400" y2="44"/>
+          <polygon class="wheel-pointer" points="400,4 389,18 411,18"/>
+          <line class="wheel-pointer-line" x1="400" y1="18" x2="400" y2="42"/>
         </svg>
       </div>`;
     this.spin = this.el.querySelector('.wheel-spin');
+    this.shadow = this.el.querySelector('[data-wheel-shadow]');
     this.bind();
   }
 
-  /** Tapered wooden spokes, mortised through the rail. */
+  /**
+   * The fake cast shadow, driven by the sun in the wheel's frame.
+   * relAzimuth: the sun's bearing relative to the ship's heading (0 =
+   * dead ahead). elevation: the sun's height above the deck. A low sun
+   * throws a long shadow; a side sun pushes it across the deck.
+   */
+  setCast(relAzimuth: number, elevation: number): void {
+    if (!this.shadow) return;
+    const sx = Math.sin(relAzimuth) * 30;
+    const sy = 10 + Math.max(0, 1 - elevation * 1.6) * 22;
+    this.shadow.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
+  }
+
+  /** Baluster-shaped spokes, swelling toward the rim, mortised through it. */
   private spokes(): string {
     const out: string[] = [];
     for (let i = 0; i < WHEEL_SPOKES; i++) {
       const a = Math.PI / 2 + (i * Math.PI * 2) / WHEEL_SPOKES;
       const ca = Math.cos(a);
       const sa = Math.sin(a);
+      // Turned profile: a shoulder under the rim, a waist, then widening
+      // toward the hub (where it leaves the view).
+      const profile: Array<[number, number]> = [
+        [652, 6.6],
+        [662, 7.6],
+        [674, 8.6],
+        [680, 7.0],
+        [640, 6.0],
+        [600, 5.2],
+        [556, 6.6],
+      ];
       const pt = (r: number, w: number): string =>
         `${(WHEEL_CX + ca * r - sa * w).toFixed(1)},${(WHEEL_CY - sa * r - ca * w).toFixed(1)}`;
+      const fwd = profile.map(([r, w]) => pt(r, w));
+      const back = [...profile].reverse().map(([r, w]) => pt(r, -w));
+      const dark = [...profile]
+        .slice(0, 4)
+        .map(([r, w]) => pt(r, w + 1.4))
+        .join(' ')
+        .concat(
+          ' ',
+          [...profile].slice(0, 4).reverse().map(([r, w]) => pt(r, -w + 1.4)).join(' '),
+        );
       out.push(
-        `<polygon class="wheel-spoke" points="${pt(644, 6)} ${pt(674, 3.4)} ${pt(674, -3.4)} ${pt(644, -6)}"/>`,
+        `<polygon class="wheel-spoke-shadow" points="${dark}"/>`,
+        `<polygon class="wheel-spoke" points="${fwd.join(' ')} ${back.join(' ')}"/>`,
       );
     }
     return out.join('');
   }
 
-  /** Hand-grips sticking out past the rail, one on every spoke. */
-  private grips(): string {
+  /** The spokes protrude past the rim as handles, capped with turned knobs. */
+  private handles(): string {
     const out: string[] = [];
     for (let i = 0; i < WHEEL_SPOKES; i++) {
       const a = Math.PI / 2 + (i * Math.PI * 2) / WHEEL_SPOKES;
       const ca = Math.cos(a);
       const sa = Math.sin(a);
-      const x1 = (WHEEL_CX + ca * GRIP_IN).toFixed(1);
-      const y1 = (WHEEL_CY - sa * GRIP_IN).toFixed(1);
-      const x2 = (WHEEL_CX + ca * GRIP_OUT).toFixed(1);
-      const y2 = (WHEEL_CY - sa * GRIP_OUT).toFixed(1);
+      const deg = ((a - Math.PI / 2) * 180) / Math.PI;
+      const hx = (WHEEL_CX + ca * 688).toFixed(1);
+      const hy = (WHEEL_CY - sa * 688).toFixed(1);
+      const king = i === 0 ? ' wheel-king' : '';
       out.push(
-        `<line class="wheel-grip" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`,
-        `<circle class="wheel-grip-cap" cx="${x2}" cy="${y2}" r="3.2"/>`,
+        `<g class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy})">`,
+        `  <line class="wheel-handle-collar" x1="${(WHEEL_CX + ca * 671).toFixed(1)}" y1="${(WHEEL_CY - sa * 671).toFixed(1)}" x2="${(WHEEL_CX + ca * 678).toFixed(1)}" y2="${(WHEEL_CY - sa * 678).toFixed(1)}"/>`,
+        `  <ellipse class="wheel-handle-bulb" cx="${hx}" cy="${hy}" rx="14" ry="6.4"/>`,
+        `  <ellipse class="wheel-handle-shine" cx="${hx}" cy="${(WHEEL_CY - sa * 688 - 1.4).toFixed(1)}" rx="9.5" ry="3"/>`,
+        `  <ellipse class="wheel-handle-tip" cx="${(WHEEL_CX + ca * 695).toFixed(1)}" cy="${(WHEEL_CY - sa * 695).toFixed(1)}" rx="3" ry="5.2"/>`,
+        `</g>`,
       );
     }
     return out.join('');

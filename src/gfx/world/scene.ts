@@ -89,6 +89,17 @@ export class WorldScene {
   private sunDir: [number, number, number] = [0.37, 0.55, 0.37];
   private sunColor: [number, number, number] = [0.98, 0.95, 0.88];
   private sunIntensity = 1;
+  private sunElev = 0.8;
+
+  /** The sun's bearing in world space — for helms, shadows, and lighting. */
+  get sunAzimuth(): number {
+    return Math.atan2(this.sunDir[0], this.sunDir[2]);
+  }
+
+  /** The sun's height above the horizon. */
+  get sunElevation(): number {
+    return this.sunElev;
+  }
   private readonly LATITUDE = 0.35;
   private readonly DAY_OF_YEAR = 190;
 
@@ -101,6 +112,7 @@ export class WorldScene {
     const s = solarPosition(this.DAY_OF_YEAR, hourFraction, this.LATITUDE);
     this.sunDir = s.dir;
     this.sunIntensity = s.intensity;
+    this.sunElev = s.elevation;
   }
 
   /** Shortest-path yaw smoothing so entities turn, never snap. */

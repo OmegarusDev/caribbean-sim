@@ -315,7 +315,13 @@ export class BattleScene implements Scene {
   private applyPlayerInput(): void {
     const player = this.playerShip();
     if (!player || player.sunk || player.struck) return;
-    if (this.wheel) player.rudder = this.wheel.value;
+    if (this.wheel) {
+      player.rudder = this.wheel.value;
+      // The wheel's fake shadow follows the sun in the wheel's own frame:
+      // the bearing of the light relative to the ship's heading.
+      const sc = this.scene;
+      if (sc) this.wheel.setCast(sc.sunAzimuth - player.heading, sc.sunElevation);
+    }
     if (this.sail) player.sailState = this.sail.value;
   }
 

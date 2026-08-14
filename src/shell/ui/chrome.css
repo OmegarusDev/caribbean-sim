@@ -651,15 +651,23 @@ button.danger {
   transition: transform 120ms ease-out;
 }
 
-.wheel-rail {
-  fill: url(#wheelRailWood);
+.wheel-felloe-after,
+.wheel-felloe-middle,
+.wheel-felloe-facing {
+  fill: none;
+  stroke: url(#wheelRimWood);
 }
 
-.wheel-rail-inner {
-  fill: none;
-  stroke: #241708;
-  stroke-width: 2;
-  opacity: 0.85;
+.wheel-felloe-after {
+  stroke-width: 8;
+}
+
+.wheel-felloe-middle {
+  stroke-width: 10;
+}
+
+.wheel-felloe-facing {
+  stroke-width: 12;
 }
 
 /* The far side of the wheel curves away — the arc darkens toward its lip. */
@@ -668,18 +676,53 @@ button.danger {
   pointer-events: none;
 }
 
-.wheel-spoke {
-  fill: #3f2a15;
+.wheel-spoke-shadow {
+  fill: #171008;
 }
 
-.wheel-grip {
-  stroke: #6e4522;
-  stroke-width: 9;
+.wheel-spoke {
+  fill: #4a2f16;
+}
+
+.wheel-handle-collar {
+  stroke: #5a3a1c;
+  stroke-width: 12;
   stroke-linecap: round;
 }
 
-.wheel-grip-cap {
-  fill: #2b1c0d;
+.wheel-handle-bulb {
+  fill: #7d5228;
+  stroke: #241708;
+  stroke-width: 0.8;
+}
+
+.wheel-handle-shine {
+  fill: #a06a35;
+  opacity: 0.75;
+}
+
+.wheel-handle-tip {
+  fill: #2f1f0f;
+}
+
+/* The king spoke: a brass-banded knob the helmsman feels in the dark. */
+.wheel-king .wheel-handle-collar {
+  stroke: #c9a84c;
+  opacity: 0.92;
+}
+
+.wheel-king .wheel-handle-bulb {
+  stroke: #c9a84c;
+  stroke-width: 1.4;
+}
+
+/* The cast shadow is its own layer, driven by the sun via setCast. */
+.wheel-shadow {
+  transition: transform 300ms ease-out;
+}
+
+.wheel-cast {
+  fill: url(#wheelCastShadow);
 }
 
 .wheel-pointer {
