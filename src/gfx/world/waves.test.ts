@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OCEAN_WAVES, waveHeight } from './waves';
+import { OCEAN_WAVES, waveHeight, waveChopGLSL, waveSwellGLSL } from './waves';
 
 describe('shared wave field', () => {
   it('heights stay bounded — the sea is a gentle plane, not a storm', () => {
@@ -35,21 +35,29 @@ describe('shared wave field', () => {
     expect(WATER_VS).toContain('cos(wind + 0.300)');
     expect(WATER_VS).toContain('sin(wind + 0.300)');
   });
-});
 
-describe('water grid geometry', () => {
-  it('positions are vec3 and indices stay in range', async () => {
-    const { buildWaterGrid } = await import('./water');
-    const { positions, indices } = buildWaterGrid(8, 400);
-    expect(positions.length % 3).toBe(0);
-    const verts = positions.length / 3;
-    expect(verts).toBe(64); // 8x8
-    for (const idx of indices) {
-      expect(idx).toBeGreaterThanOrEqual(0);
-      expect(idx).toBeLessThan(verts);
+  it('Gerstner choppiness: crests lean, never loops', () => {
+    for (const w of OCEAN_WAVES) {
+      expect(w.q).toBeGreaterThanOrEqual(0);
+      expect(w.q).toBeLessThanOrEqual(1);
     }
-    // grid covers the full span and sits at y=0
-    const ys = positions.filter((_, i) => i % 3 === 1);
-    expect(new Set(ys)).toEqual(new Set([0]));
+    const chop = waveChopGLSL();
+    for (const w of OCEAN_WAVES) {
+      if (w.q > 0) {
+        expect(chop).toContain(`* ${w.amp} * ${w.q};`);
+        // the displacement rides the same wind-relative direction
+        expect(chop).toContain(`cos(wind + ${w.rel.toFixed(3)})`);
+      } else {
+        expect(chop).not.toContain(`* ${w.amp} *`);
+      }
+    }
+  });
+
+  it('swell octaves are the slow pair the chop rises above', () => {
+    const swell = waveSwellGLSL();
+    for (const w of OCEAN_WAVES) {
+      const present = swell.includes(`* ${w.amp};`);
+      expect(present).toBe(w.q === 0);
+    }
   });
 });

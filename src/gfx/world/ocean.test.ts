@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { tileableNormal, tileableHeight } from './ocean';
+import { tileableNormal, tileableHeight, oceanOctaves, sampleOctaves, maxSlope, type OceanSpec } from './ocean';
+
+const FINE: OceanSpec = { fxMax: 2, fyMax: 12, kAmp: 0.55 };
+const COARSE: OceanSpec = { fxMax: 2, fyMax: 8, kAmp: 0.55 };
 
 describe('tileable ocean normal generator', () => {
   it('produces valid encoded normals across the map', () => {
-    const gen = tileableNormal(7, 4, 0.16);
+    const gen = tileableNormal(FINE, 7, 5, 0.012);
     for (let i = 0; i < 64 * 64; i += 97) {
       const x = i % 64;
       const y = (i / 64) | 0;
@@ -19,8 +22,28 @@ describe('tileable ocean normal generator', () => {
     }
   });
 
+  it('never saturates: the slope bound holds at every pixel (the no-blob contract)', () => {
+    const bound = maxSlope(FINE, 5) * 0.012;
+    for (const [spec, seed, count, strength] of [
+      [FINE, 7, 5, 0.012],
+      [COARSE, 23, 4, 0.028],
+    ] as const) {
+      const gen = tileableNormal(spec, seed, count, strength);
+      for (let i = 0; i < 64 * 64; i += 11) {
+        const x = i % 64;
+        const y = (i / 64) | 0;
+        const c = gen(x, y, 64);
+        const nx = (c[0] / 255) * 2 - 1;
+        const ny = (c[1] / 255) * 2 - 1;
+        expect(Math.abs(nx)).toBeLessThan(maxSlope(spec, count) * strength * 1.05);
+        expect(Math.abs(ny)).toBeLessThan(maxSlope(spec, count) * strength * 1.05);
+      }
+    }
+    expect(bound).toBeGreaterThan(0);
+  });
+
   it('wraps exactly: the coordinate u=1 samples identically to u=0', () => {
-    const gen = tileableNormal(23, 5, 0.1);
+    const gen = tileableNormal(COARSE, 23, 4, 0.028);
     for (let y = 0; y < 64; y += 7) {
       const a = gen(0, y, 64);
       const wrapped = gen(64, y, 64);
@@ -30,20 +53,24 @@ describe('tileable ocean normal generator', () => {
 
   it('matches the analytic gradient at the origin', () => {
     const seed = 7;
-    const size = 64;
-    const gen = tileableNormal(seed, 4, 0.16);
-    const c = gen(0, 0, size);
-    // analytic gradient of the same noise at u=0, v=0 — the generator
-    // should agree within one 8-bit step or two
-    const e = 1e-4;
-    const du = (tileableHeight(e, 0, 1, seed, 4) - tileableHeight(-e, 0, 1, seed, 4)) / (2 * e);
-    const dv = (tileableHeight(0, e, 1, seed, 4) - tileableHeight(0, -e, 1, seed, 4)) / (2 * e);
-    const gx = -du * 0.16;
-    const gy = -dv * 0.16;
+    const strength = 0.012;
+    const gen = tileableNormal(FINE, seed, 5, strength);
+    const osc = oceanOctaves(seed, 5, FINE);
+    const { du, dv } = sampleOctaves(osc, 0, 0);
+    const gx = -du * strength;
+    const gy = -dv * strength;
     const len = Math.sqrt(gx * gx + gy * gy + 1);
     const nx = gx / len * 0.5 + 0.5;
     const ny = gy / len * 0.5 + 0.5;
+    const c = gen(0, 0, 64);
     expect(Math.abs(c[0] - Math.round(nx * 255))).toBeLessThanOrEqual(2);
     expect(Math.abs(c[1] - Math.round(ny * 255))).toBeLessThanOrEqual(2);
+    expect(tileableHeight(0, 0, 64, FINE, seed, 5)).toBeCloseTo(sampleOctaves(osc, 0, 0).h, 6);
+  });
+
+  it('stays above the 4-texel alias floor', () => {
+    // The shortest along-wind wavelength must cover at least 4 texels.
+    expect(64 / FINE.fyMax).toBeGreaterThanOrEqual(4);
+    expect(128 / COARSE.fyMax).toBeGreaterThanOrEqual(4);
   });
 });

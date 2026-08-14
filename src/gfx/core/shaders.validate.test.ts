@@ -3,19 +3,14 @@
  * The black-screen episodes were all unvalidated shader edits that "looked
  * valid" but failed at runtime. This test makes a syntax error impossible
  * to ship; the fixture case proves the parser has teeth.
+ *
+ * The shaders are parsed as their EVALUATED values (template strings and
+ * generated wave octaves are resolved), so the exact GLSL that gets
+ * compiled is what the parser checks.
  */
 import { describe, expect, it } from 'vitest';
 import { parse } from '@shaderfrog/glsl-parser';
-import { readFileSync } from 'fs';
-import { join } from 'node:path';
-
-function extract(src: string, name: string): string | null {
-  const m = src.match(
-    new RegExp('export const ' + name + ' = `((?:\\$\\{COMMON_HEAD\\}|[^`])*)`;', 's'),
-  );
-  if (!m) return null;
-  return m[1].replace('${COMMON_HEAD}', '#version 300 es\nprecision highp float;\n');
-}
+import * as shaders from './shaders';
 
 const SHADERS = [
   'SHIP_VS',
@@ -31,11 +26,9 @@ const SHADERS = [
 ] as const;
 
 describe('GLSL validation', () => {
-  const src = readFileSync(join(import.meta.dirname, 'shaders.ts'), 'utf8');
-
   for (const name of SHADERS) {
     it(`${name} parses without syntax errors`, () => {
-      const glsl = extract(src, name);
+      const glsl = (shaders as unknown as Record<string, string>)[name];
       expect(glsl).toBeTruthy();
       expect(() => parse(glsl!)).not.toThrow();
     });
@@ -43,5 +36,15 @@ describe('GLSL validation', () => {
 
   it('the parser has teeth — a broken shader must throw', () => {
     expect(() => parse('void main() { gl_Position = vec4(0.0; }')).toThrow();
+  });
+
+  it('the wave field is fully embedded in the compiled water vertex shader', async () => {
+    // The height octaves, the Gerstner chop, and the swell pair all reach
+    // the shader via the emitters — the gate must verify the complete text.
+    const { waveOctavesGLSL, waveChopGLSL, waveSwellGLSL } = await import('../world/waves');
+    const vs = shaders.WATER_VS;
+    expect(vs).toContain(waveOctavesGLSL());
+    expect(vs).toContain(waveChopGLSL());
+    expect(vs).toContain(waveSwellGLSL());
   });
 });

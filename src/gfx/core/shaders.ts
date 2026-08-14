@@ -9,6 +9,8 @@ const COMMON_HEAD = `#version 300 es
 precision highp float;
 `;
 
+import { waveOctavesGLSL, waveChopGLSL, waveSwellGLSL } from '../world/waves';
+
 /** Instance record: model(16) stripe(3) flag(3) sailRatio(1) windLocal(2) phase(1). */
 export const SHIP_INSTANCE_STRIDE = 26;
 
@@ -140,28 +142,35 @@ uniform mat4 u_viewProj;
 out vec3 v_world;
 out vec3 v_normal;
 out float v_height;
+out float v_swell;
 
 float heightAt(vec2 p, float wind) {
   float h = 0.0;
-  h += sin(dot(p, vec2(cos(wind + 0.300), sin(wind + 0.300))) * 0.002 + u_time * 0.2) * 2.0;
-  h += sin(dot(p, vec2(cos(wind - 0.900), sin(wind - 0.900))) * 0.004 + u_time * 0.35) * 0.9;
-  h += sin(dot(p, vec2(cos(wind + 1.800), sin(wind + 1.800))) * 0.0065 + u_time * 0.5) * 0.6;
-  h += sin(dot(p, vec2(cos(wind - 2.400), sin(wind - 2.400))) * 0.011 + u_time * 0.7) * 0.35;
-  h += sin(dot(p, vec2(cos(wind + 0.600), sin(wind + 0.600))) * 0.02 + u_time * 1.0) * 0.22;
-  h += sin(dot(p, vec2(cos(wind - 1.200), sin(wind - 1.200))) * 0.038 + u_time * 1.4) * 0.14;
+${waveOctavesGLSL()}
   return h;
 }
 
+float swellAt(vec2 p, float wind) {
+  float s = 0.0;
+${waveSwellGLSL()}
+  return s;
+}
+
 void main() {
-  vec2 wp = u_center + aPos.xz;
-  float h = heightAt(wp, u_windDir);
-  // Analytic surface slope via central differences of the same field.
+  vec2 p = u_center + aPos.xz;
+  float wind = u_windDir;
+  float h = heightAt(p, wind);
+  float swell = swellAt(p, wind);
+${waveChopGLSL()}
+  // Analytic surface slope via central differences of the same field,
+  // sampled at the displaced point so the normals carry the crest lean.
   float e = 6.0;
-  float hx = heightAt(wp + vec2(e, 0.0), u_windDir) - heightAt(wp - vec2(e, 0.0), u_windDir);
-  float hz = heightAt(wp + vec2(0.0, e), u_windDir) - heightAt(wp - vec2(0.0, e), u_windDir);
+  float hx = heightAt(p + vec2(e, 0.0), wind) - heightAt(p - vec2(e, 0.0), wind);
+  float hz = heightAt(p + vec2(0.0, e), wind) - heightAt(p - vec2(0.0, e), wind);
   v_normal = normalize(vec3(-hx, 2.0 * e, -hz));
   v_height = h;
-  v_world = vec3(wp.x, h, wp.y);
+  v_swell = swell;
+  v_world = vec3(p.x, h, p.y);
   gl_Position = u_viewProj * vec4(v_world, 1.0);
 }`;
 
@@ -169,7 +178,10 @@ export const WATER_FS = `${COMMON_HEAD}
 in vec3 v_world;
 in vec3 v_normal;
 in float v_height;
+in float v_swell;
 
+uniform float u_time;
+uniform float u_windDir;
 uniform vec3 u_eye;
 uniform vec3 u_sunDir;
 uniform vec3 u_sunColor;
@@ -178,43 +190,75 @@ uniform vec3 u_horizon;
 uniform vec3 u_deep;
 uniform vec3 u_mid;
 uniform sampler2D u_tex;
+uniform sampler2D u_normFine;
+uniform sampler2D u_normCoarse;
 
 out vec4 frag;
 
+float ggxD(float ndotH, float a) {
+  float a2 = a * a;
+  float d = ndotH * ndotH * (a2 - 1.0) + 1.0;
+  return a2 / max(0.0001, d * d);
+}
+
 void main() {
-  // The sea is a mirror: base colour is the sky reflected in the surface,
-  // mixed with the water's own volume by Fresnel.
   vec3 N = normalize(v_normal);
   vec3 V = normalize(u_eye - v_world);
-  vec3 R = reflect(-V, N);
-  float skyH = R.y;
-  vec3 skyCol = mix(u_horizon, u_skyTop, smoothstep(0.0, 0.4, skyH));
-  float sd = max(dot(R, u_sunDir), 0.0);
-  skyCol += u_sunColor * pow(sd, 10.0) * 0.08;
+  float dist = length(u_eye - v_world);
 
-  vec3 col = mix(u_deep, u_mid, 0.55);
-  float fres = pow(1.0 - max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 4.0);
-  col = mix(col, skyCol, clamp(fres * 1.1, 0.0, 0.85));
+  // Micro-detail, wind-aligned: the maps are streaks across the wind and
+  // scroll downwind, so the ripple field moves coherently with the sea.
+  float c = cos(u_windDir);
+  float s = sin(u_windDir);
+  vec2 tc = vec2(v_world.x * c - v_world.z * s, v_world.x * s + v_world.z * c);
+  vec2 uvFine = tc * 0.05 + vec2(0.0, u_time * 2.0);
+  vec2 uvCoarse = tc * 0.012 + vec2(u_time * 0.35, u_time * 0.8);
+  vec2 nf2 = texture(u_normFine, uvFine).xy * 2.0 - 1.0;
+  vec2 nc2 = texture(u_normCoarse, uvCoarse).xy * 2.0 - 1.0;
+  vec3 nFine = vec3(nf2, sqrt(max(0.0, 1.0 - dot(nf2, nf2))));
+  vec3 nCoarse = vec3(nc2, sqrt(max(0.0, 1.0 - dot(nc2, nc2))));
+  // The geometry is the framework; the detail rides on it, fading out at
+  // distance where texels are smaller than pixels (anti-aliasing LOD).
+  float lod = 1.0 - smoothstep(900.0, 2100.0, dist);
+  N = normalize(N * 1.5 + (nCoarse * 0.5 + nFine * 0.6) * lod);
 
   float n = texture(u_tex, v_world.xz * 0.02).r;
-  col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
 
-  // Foam where the surface is steep (breaking) and on the tallest crests.
+  // The mirror: the reflected sky carries the sun disk and its glow.
+  vec3 R = reflect(-V, N);
+  float skyH = R.y;
+  vec3 skyCol = mix(u_horizon, u_skyTop, smoothstep(0.0, 0.42, skyH));
+  float sd = max(dot(R, u_sunDir), 0.0);
+  skyCol += u_sunColor * (pow(sd, 8.0) * 0.22 + pow(sd, 420.0) * 1.5);
+
+  vec3 volume = mix(u_deep, u_mid, 0.55 + (n - 0.5) * 0.3);
+  volume += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
+
+  float fres = pow(1.0 - max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 3.5);
+  vec3 col = mix(volume, skyCol, clamp(fres, 0.0, 0.95));
+
+  // Foam: thin crest lines where the short chop rides high over the
+  // local swell — the honest whitecap — plus the roughest tilted faces.
+  float crest = v_height - v_swell;
+  float foam = smoothstep(0.45, 0.85, crest) * (0.35 + 0.65 * n);
   float steep = clamp(1.0 - N.y, 0.0, 1.0);
-  float foam = smoothstep(0.15, 0.4, steep) * 0.6 + smoothstep(0.9, 1.6, v_height) * 0.5;
-  col = mix(col, vec3(0.78, 0.88, 0.9), clamp(foam, 0.0, 1.0) * (0.4 + 0.8 * n));
+  foam += smoothstep(0.16, 0.3, steep) * 0.25;
+  col = mix(col, vec3(0.82, 0.9, 0.93), min(foam, 0.75));
 
-  // Sun glitter: a tight sparkle from the wave normals, plus the
-  // elongated glitter path beneath the sun — real water's tell.
-  float spec = pow(max(dot(reflect(-u_sunDir, N), V), 0.0), 160.0);
+  // Specular: GGX-lite whose roughness is choppiness, plus the anisotropic
+  // glitter path aligned with the wind — the sun-path on rough water.
+  float roughness = clamp(0.12 + nf2.x * 0.3 + nf2.y * 0.2, 0.05, 0.8);
+  float a = roughness * roughness;
   vec3 H = normalize(u_sunDir + V);
-  float azDiff = 1.0 - abs(dot(normalize(H.xz), normalize(vec2(1.0, 0.35))));
-  float glitter = pow(max(H.y, 0.0), 30.0) * exp(-azDiff * 14.0);
-  col += u_sunColor * (spec * 0.7 + glitter * 0.5);
+  float ndotH = max(dot(N, H), 0.0);
+  float spec = ggxD(ndotH, a) * 0.35;
+  float azDiff = 1.0 - abs(dot(normalize(H.xz), vec2(c, s)));
+  float glitter = pow(max(H.y, 0.0), 24.0) * exp(-azDiff * 12.0);
+  col += u_sunColor * (spec * fres + glitter * 0.55);
 
-  float dist = length(u_eye - v_world);
-  float fog = clamp((dist - 900.0) / 2200.0, 0.0, 1.0);
-  col = mix(col, u_horizon, fog * 0.6);
+  // Exponential haze: light scatters through the air column above the sea.
+  float haze = 1.0 - exp(-dist * 0.0013);
+  col = mix(col, u_horizon, clamp(haze, 0.0, 0.78));
   frag = vec4(col, 1.0);
 }`;
 

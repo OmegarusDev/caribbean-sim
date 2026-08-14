@@ -83,8 +83,10 @@ export class Water {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(this.program.uniform('u_tex'), 0);
-    const fine = getProceduralTexture(this.gl, 'ocean:norm-fine', { size: 64, repeat: true, pixel: tileableNormal(7, 4, 0.16) });
-    const coarse = getProceduralTexture(this.gl, 'ocean:norm-coarse', { size: 128, repeat: true, pixel: tileableNormal(23, 5, 0.1) });
+    // Fine ripple map: streak lines across the wind, frequencies above the
+    // 4-texel alias floor, slope bounded by the amp/wavelength ratio.
+    const fine = getProceduralTexture(this.gl, 'ocean:norm-fine', { size: 64, repeat: true, pixel: tileableNormal({ fxMax: 2, fyMax: 12, kAmp: 0.55 }, 7, 5, 0.012) });
+    const coarse = getProceduralTexture(this.gl, 'ocean:norm-coarse', { size: 128, repeat: true, pixel: tileableNormal({ fxMax: 2, fyMax: 8, kAmp: 0.55 }, 23, 4, 0.028) });
     if (fine) {
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, fine);
