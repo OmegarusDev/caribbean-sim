@@ -176,11 +176,6 @@ export class Input {
     return this.keys.has(code);
   }
 
-  /** True while two+ fingers are down on the stage (pinch in progress). */
-  get isPinching(): boolean {
-    return this.activeTouches.size >= 2;
-  }
-
   /** Call at the end of each frame. */
   endFrame(): void {
     this.pointer.clicked = false;

@@ -54,3 +54,37 @@ describe('captain mode (player ship)', () => {
     expect(fired).toBe(true);
   });
 });
+
+describe('grappled ships still end battles', () => {
+  it('a burning grappled ship at zero hull sinks', () => {
+    const battle = new Battle(makeCaptainConfig('sloop', 'sloop', 999));
+    const a = battle.ships.find((s) => s.id === 't0s0')!;
+    const b = battle.ships.find((s) => s.id !== 't0s0')!;
+    a.hull = 0;
+    a.onFire = true;
+    a.fireT = 99;
+    a.grappledWith = b.id;
+    b.grappledWith = a.id;
+    b.boardLeader = true;
+    for (let i = 0; i < 60 && battle.phase === 'ongoing'; i++) battle.step();
+    expect(a.sunk).toBe(true);
+  });
+});
+
+describe('phase cadence', () => {
+  it('a beaten ship switches to fleeing within ~3s of becoming beaten', () => {
+    const battle = new Battle(makeCaptainConfig('sloop', 'sloop', 2024));
+    const enemy = battle.ships.find((s) => s.id !== 't0s0')!;
+    enemy.hull = 1;
+    enemy.morale = 60;
+    let fled = false;
+    for (let i = 0; i < 180 && battle.phase === 'ongoing'; i++) {
+      battle.step();
+      if (enemy.phase === 'fleeing') {
+        fled = true;
+        break;
+      }
+    }
+    expect(fled).toBe(true);
+  });
+});

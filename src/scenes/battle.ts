@@ -71,7 +71,6 @@ export class BattleScene implements Scene {
   private finished = false;
   private simAcc = 0;
   private time = 0;
-  private debugArcs = false;
   private selectedId: string | null = null;
   private caption: string | null = null;
   private captionLife = 0;
@@ -318,7 +317,6 @@ export class BattleScene implements Scene {
     if (input.wasKeyPressed('Digit4')) return { type: 'SPEED', speed: 4 };
     if (input.wasKeyPressed('KeyP')) return { type: 'PAUSE' };
     if (input.wasKeyPressed('KeyM')) return { type: 'MUTE' };
-    if (input.wasKeyPressed('KeyD')) return { type: 'DEBUG' };
     if (input.wasKeyPressed('KeyR')) return { type: 'RESTART' };
     if (input.wasKeyPressed('KeyN')) return { type: 'REROLL' };
     if (this.mode === 'captain') {
@@ -368,10 +366,6 @@ export class BattleScene implements Scene {
         return;
       case 'MUTE':
         this.deps.synth.toggleMute();
-        this.hudDirty = true;
-        return;
-      case 'DEBUG':
-        this.debugArcs = !this.debugArcs;
         this.hudDirty = true;
         return;
       case 'RESTART':
@@ -538,7 +532,6 @@ export class BattleScene implements Scene {
     right.append(
       this.hudBtn('Pause', 'P', () => this.emit({ type: 'PAUSE' })),
       this.hudBtn('Mute', 'M', () => this.emit({ type: 'MUTE' })),
-      this.hudBtn('Arcs', 'D', () => this.emit({ type: 'DEBUG' })),
       this.hudBtn('Restart', 'R', () => this.emit({ type: 'RESTART' })),
       this.hudBtn('Reroll', 'N', () => this.emit({ type: 'REROLL' })),
       this.hudBtn('Leave', 'Esc', () => this.emit({ type: 'LEAVE' })),

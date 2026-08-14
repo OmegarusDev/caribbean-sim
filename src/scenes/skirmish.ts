@@ -178,7 +178,7 @@ export class SkirmishScene implements Scene {
       el('p', {
         className: 'skirmish-note',
         text:
-          'Captain: drag the wheel or scroll to steer · the sail slider sets canvas · arrows/WASD work too · guns fire themselves',
+          'Captain mode: wheel to steer, slider to trim, FIRE to loose the broadside · Auto mode: just watch · 1/2/4 speed, P pause, R restart, N reroll',
       }),
     );
     this.root.append(

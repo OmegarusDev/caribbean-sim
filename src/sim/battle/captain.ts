@@ -18,7 +18,7 @@ import { clamp, clamp01, normalizeAngle } from './battle';
 import type { CaptainPhase, ShipIntention, ShipState } from './types';
 
 const NO_SAIL_ANGLE = 0.96; // rad — pinching harder than this is impossible
-const PHASE_EVAL_TICKS = 40; // re-evaluate the phase every 2s of sim time
+const PHASE_EVAL_TICKS = 5; // re-evaluate the phase every ~2s of sim time
 const TACK_FLIP_TICKS = 150;
 
 export function updateCaptain(

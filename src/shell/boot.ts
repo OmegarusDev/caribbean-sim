@@ -35,11 +35,6 @@ export class GameLoop {
     cancelAnimationFrame(this.raf);
   }
 
-  /** How many fixed steps are due this frame (for sim clocks). */
-  fixedStepsDue(): number {
-    return Math.floor(this.acc / STEP);
-  }
-
   private readonly frame = (now: number): void => {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.frame);

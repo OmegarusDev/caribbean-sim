@@ -140,9 +140,9 @@ export class Battle {
     }
     for (const ship of this.ships) {
       if (ship.sunk || ship.struck) continue;
-      if (ship.grappledWith !== null) continue;
-      // The player presses fire; AI ships fire themselves.
-      if (ship.id !== this.config.playerShipId) {
+      // The player presses fire; AI ships fire themselves. Grappled ships
+      // cease fire but still strike and sink.
+      if (ship.grappledWith === null && ship.id !== this.config.playerShipId) {
         for (const side of [-1, 1] as const) this.fireSideIfPossible(ship, side);
       }
       this.checkStrike(ship);
