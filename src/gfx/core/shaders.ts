@@ -96,6 +96,11 @@ void main() {
     p.z += aWindLocal.y * billow;
     p.x += sin(u * 7.0 + u_time * 5.0 + aPhase) * 0.012 * aSailRatio;
     p.y -= (1.0 - aSailRatio) * v * 3.0;
+    // The billow is curvature, not just silhouette: tilt the normal along
+    // the wind by the billow's gradient so the sail reads as a taut sheet.
+    float dBdu = cos(u * 3.14159) * 3.14159 * (1.0 - v * 0.5) * 0.18 * aSailRatio;
+    vec3 sailN = normalize(vec3(-aWindLocal.x * dBdu, 1.0, -aWindLocal.y * dBdu));
+    aNormal = sailN;
   } else if (aKind > 2.5) {
     float wave = sin(aPos.x * 6.0 + u_time * 9.0 + aPhase);
     p.y += wave * 0.03;
@@ -150,10 +155,14 @@ void main() {
     detail = texture(u_tex, v_uv).r;
     albedo = mix(albedo, v_stripe, stripe * 0.9);
   }
-  vec3 col = albedo * (0.5 + 0.5 * max(dot(normalize(v_normal), u_lightDir), 0.0));
+  vec3 N = normalize(v_normal);
+  vec3 col = albedo * (0.5 + 0.5 * max(dot(N, u_lightDir), 0.0));
   vec3 viewDir = normalize(u_eye - v_world);
-  float rim = pow(1.0 - max(dot(normalize(v_normal), viewDir), 0.0), 2.0) * 0.35;
+  float rim = pow(1.0 - max(dot(N, viewDir), 0.0), 2.0) * 0.35;
   col += vec3(1.0, 0.9, 0.75) * rim * 0.25;
+  // A breath of sheen on the wood — wet hull, polished rail, sun on the decks.
+  float sheen = pow(max(dot(N, normalize(u_lightDir + viewDir)), 0.0), 24.0);
+  col += vec3(1.0, 0.85, 0.6) * sheen * (0.25 * (1.0 - smoothstep(0.5, 2.5, v_kind)));
   col *= 0.78 + 0.4 * detail;
   float fog = smoothstep(u_fogStart, u_fogEnd, length(u_eye - v_world));
   col = mix(col, u_fog, clamp(fog, 0.0, 0.9));

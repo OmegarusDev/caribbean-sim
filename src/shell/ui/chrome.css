@@ -719,9 +719,8 @@ button.danger {
 .sail-ctl {
   position: absolute;
   left: calc(var(--safe-left) + 14px);
-  top: 50%;
-  transform: translateY(-50%);
-  height: min(220px, 42vh);
+  top: calc(10vh + 20px);
+  height: min(150px, 30vh);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -762,7 +761,7 @@ button.danger {
 .fire-ctl {
   position: absolute;
   left: calc(var(--safe-left) + 14px);
-  bottom: calc(var(--safe-bottom) + 300px);
+  top: calc(38vh + 28px);
   width: min(150px, 26vw);
   text-align: center;
   cursor: pointer;
