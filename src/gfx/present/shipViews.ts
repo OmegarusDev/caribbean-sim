@@ -6,6 +6,7 @@ import { HULL_CLASSES } from '../../content/ships';
 import type { HullClassId } from '../../content/ships';
 import type { ShipState } from '../../sim/battle/types';
 import type { WorldEntity } from '../world/entities';
+import { waveHeight } from '../world/waves';
 
 export const TEAM_STRIPE: Record<0 | 1, [number, number, number]> = {
   0: [0.18, 0.49, 0.54],
@@ -35,13 +36,26 @@ export function shipPhase(id: string): number {
 export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
   const cls = HULL_CLASSES[s.hullClass];
   const phase = shipPhase(s.id);
-  let pitch = Math.sin(opts.time * 0.8 + phase) * 0.018;
-  let roll = Math.sin(opts.time * 0.9 + phase * 1.3) * 0.025;
+  const time = opts.time;
+  // Ride the SAME wave field the water shader displaces: the ship's height
+  // and tilt are sampled from the surface at its position, so it sits in
+  // the sea instead of bobbing on an unrelated sine.
+  const L = cls.length;
+  const stepL = L * 0.3;
+  const yFwd = waveHeight(s.x + Math.cos(s.heading) * stepL, s.y + Math.sin(s.heading) * stepL, time);
+  const yAft = waveHeight(s.x - Math.cos(s.heading) * stepL, s.y - Math.sin(s.heading) * stepL, time);
+  const yStb = waveHeight(s.x - Math.sin(s.heading) * stepL, s.y + Math.cos(s.heading) * stepL, time);
+  const yPor = waveHeight(s.x + Math.sin(s.heading) * stepL, s.y - Math.cos(s.heading) * stepL, time);
+  let pitch = Math.atan2(yFwd - yAft, stepL * 2) * 0.8;
+  let roll = Math.atan2(yStb - yPor, stepL * 2) * 0.8;
+  // Small residual life — the sea is never perfectly rigid.
+  pitch += Math.sin(time * 0.6 + phase) * 0.006;
+  roll += Math.sin(time * 0.7 + phase * 1.3) * 0.008;
   // The hull must RIDE the water, not sit in it: without this lift the hull
   // is below the opaque surface and only the masts show. Freeboard ≈ 9% of
   // length; the keel stays deep below.
   const lift = cls.length * 0.09;
-  let y = lift + Math.sin(opts.time * 0.85 + phase) * 1.2 + (opts.extraY ?? 0);
+  let y = lift + waveHeight(s.x, s.y, time) + Math.sin(time * 0.55 + phase) * 0.25 + (opts.extraY ?? 0);
   if (s.sunk) {
     const amt = Math.min(1, (opts.sinkT ?? 0) / 12);
     pitch -= amt * 1.05;

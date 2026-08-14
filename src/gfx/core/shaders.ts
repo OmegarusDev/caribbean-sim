@@ -129,36 +129,6 @@ void main() {
   frag = vec4(v_color.rgb, 0.9);
 }`;
 
-export const WATER_VS = `${COMMON_HEAD}
-layout(location=0) in vec2 aPos;
-
-uniform vec2 u_center;
-uniform float u_time;
-uniform mat4 u_viewProj;
-
-out vec3 v_world;
-out float v_height;
-
-float wave(vec2 p, vec2 dir, float amp, float freq, float speed) {
-  float d = dot(p, dir);
-  return sin(d * freq + u_time * speed) * amp;
-}
-
-void main() {
-  vec2 wp = u_center + aPos;
-  float h = 0.0;
-  // Ocean pace — long slow swells, gentle chop. Fast phase speeds read as
-  // a river and are dizzying on screen.
-  h += wave(wp, normalize(vec2(1.0, 0.35)), 2.2, 0.011, 0.55);
-  h += wave(wp, normalize(vec2(-0.7, 0.8)), 1.5, 0.018, 0.85);
-  h += wave(wp, normalize(vec2(0.25, -1.0)), 1.0, 0.03, 1.2);
-  h += wave(wp, normalize(vec2(0.9, 0.1)), 0.7, 0.05, 1.6);
-  h += wave(wp, normalize(vec2(-0.3, 0.6)), 0.4, 0.085, 2.1);
-  v_height = h;
-  v_world = vec3(wp.x, h, wp.y);
-  gl_Position = u_viewProj * vec4(v_world, 1.0);
-}`;
-
 export const WATER_FS = `${COMMON_HEAD}
 in vec3 v_world;
 in float v_height;
@@ -178,8 +148,8 @@ void main() {
   // motion and was dizzying); a slow tonal drift instead.
   float n = texture(u_tex, v_world.xz * 0.02).r;
   col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
-  float foam = smoothstep(1.6, 2.8, v_height);
-  col = mix(col, vec3(0.78, 0.88, 0.9), foam * (0.45 + 0.85 * n));
+  float foam = smoothstep(0.8, 1.5, v_height);
+  col = mix(col, vec3(0.78, 0.88, 0.9), foam * (0.4 + 0.8 * n));
   vec3 v = normalize(u_eye - v_world);
   float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 130.0);
   col += vec3(1.0, 0.93, 0.75) * spec * 0.7;

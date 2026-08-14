@@ -2,13 +2,14 @@
 import type { GlContext } from '../core/context';
 import type { GlProgram } from '../core/shader';
 import { createProgram } from '../core/shader';
-import { WATER_FS, WATER_VS } from '../core/shaders';
+import { WATER_FS } from '../core/shaders';
+import { buildWaterVS } from './waves';
 import { createMesh, type GlMesh } from '../core/mesh';
 import { getProceduralTexture, hashNoise } from '../core/texture';
 import type { Camera3d } from '../core/camera';
 import type { Atmosphere } from './atmosphere';
 
-const GRID = 52;
+const GRID = 64;
 const HALF = 2400;
 
 export class Water {
@@ -17,7 +18,7 @@ export class Water {
   private readonly uCenter = new Float32Array(2);
 
   constructor(private readonly gl: GlContext) {
-    this.program = createProgram(gl.gl, WATER_VS, WATER_FS);
+    this.program = createProgram(gl.gl, buildWaterVS(), WATER_FS);
     const positions: number[] = [];
     const indices: number[] = [];
     const cell = (HALF * 2) / (GRID - 1);
