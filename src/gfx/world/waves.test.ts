@@ -54,9 +54,10 @@ describe('shared wave field', () => {
   });
 
   it('swell octaves are the slow pair the chop rises above', () => {
+    const fmt = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
     const swell = waveSwellGLSL();
     for (const w of OCEAN_WAVES) {
-      const present = swell.includes(`* ${w.amp}`);
+      const present = swell.includes(`* ${fmt(w.amp)};`);
       expect(present).toBe(w.q === 0);
     }
   });
