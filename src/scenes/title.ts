@@ -41,7 +41,7 @@ export class TitleScene implements Scene {
   update(dt: number): void {
     this.time += dt;
     if (this.scene) {
-      this.scene.camera.smoothYaw += dt * 0.045;
+      this.scene.camera.smoothYaw += dt * 0.03;
       this.scene.controller.update([], dt, this.deps.input, null);
       this.scene.setParticles(null);
     }

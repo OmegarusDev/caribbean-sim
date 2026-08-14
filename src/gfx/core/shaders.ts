@@ -147,11 +147,13 @@ float wave(vec2 p, vec2 dir, float amp, float freq, float speed) {
 void main() {
   vec2 wp = u_center + aPos;
   float h = 0.0;
-  h += wave(wp, normalize(vec2(1.0, 0.35)), 2.6, 0.011, 1.2);
-  h += wave(wp, normalize(vec2(-0.7, 0.8)), 1.7, 0.018, 1.8);
-  h += wave(wp, normalize(vec2(0.25, -1.0)), 1.1, 0.03, 2.5);
-  h += wave(wp, normalize(vec2(0.9, 0.1)), 0.8, 0.05, 3.2);
-  h += wave(wp, normalize(vec2(-0.3, 0.6)), 0.5, 0.085, 4.2);
+  // Ocean pace — long slow swells, gentle chop. Fast phase speeds read as
+  // a river and are dizzying on screen.
+  h += wave(wp, normalize(vec2(1.0, 0.35)), 2.2, 0.011, 0.55);
+  h += wave(wp, normalize(vec2(-0.7, 0.8)), 1.5, 0.018, 0.85);
+  h += wave(wp, normalize(vec2(0.25, -1.0)), 1.0, 0.03, 1.2);
+  h += wave(wp, normalize(vec2(0.9, 0.1)), 0.7, 0.05, 1.6);
+  h += wave(wp, normalize(vec2(-0.3, 0.6)), 0.4, 0.085, 2.1);
   v_height = h;
   v_world = vec3(wp.x, h, wp.y);
   gl_Position = u_viewProj * vec4(v_world, 1.0);
@@ -172,15 +174,15 @@ out vec4 frag;
 
 void main() {
   vec3 col = mix(u_deep, u_mid, 0.55);
-  float swell = sin(v_world.x * 0.045) * sin(v_world.z * 0.04);
-  col *= 0.95 + 0.05 * swell;
+  // Gentle long-scale shading — no static grid (it shimmered with camera
+  // motion and was dizzying); a slow tonal drift instead.
   float n = texture(u_tex, v_world.xz * 0.02).r;
-  col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.4;
-  float foam = smoothstep(1.8, 3.0, v_height);
-  col = mix(col, vec3(0.78, 0.88, 0.9), foam * (0.5 + 0.9 * n));
+  col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
+  float foam = smoothstep(1.6, 2.8, v_height);
+  col = mix(col, vec3(0.78, 0.88, 0.9), foam * (0.45 + 0.85 * n));
   vec3 v = normalize(u_eye - v_world);
-  float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 90.0);
-  col += vec3(1.0, 0.93, 0.75) * spec * 1.0;
+  float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 130.0);
+  col += vec3(1.0, 0.93, 0.75) * spec * 0.7;
   float dist = length(u_eye - v_world);
   float fog = clamp((dist - 900.0) / 2200.0, 0.0, 1.0);
   col = mix(col, u_horizon, fog * 0.6);
