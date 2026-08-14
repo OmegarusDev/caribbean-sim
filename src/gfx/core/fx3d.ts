@@ -23,6 +23,7 @@ export class Fx3d {
   private vbo: WebGLBuffer;
   private data = new Float32Array(0);
   private count = 0;
+  private capacity = 0;
 
   constructor(private readonly gl: GlContext) {
     this.program = createProgram(gl.gl, PARTICLE_VS, PARTICLE_FS);
@@ -72,7 +73,13 @@ export class Fx3d {
     this.program.use();
     gl.bindVertexArray(this.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, this.data.subarray(0, this.count * STRIDE), gl.DYNAMIC_DRAW);
+    const bytes = this.count * STRIDE * 4;
+    if (bytes > this.capacity) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.data.subarray(0, this.count * STRIDE), gl.DYNAMIC_DRAW);
+      this.capacity = bytes;
+    } else {
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.data.subarray(0, this.count * STRIDE));
+    }
     gl.uniformMatrix4fv(this.program.uniform('u_viewProj'), false, cam.getViewProj());
     gl.uniform1f(this.program.uniform('u_scale'), this.gl.cssH * 0.5 / Math.tan(cam.getFovY() / 2));
     gl.enable(gl.BLEND);

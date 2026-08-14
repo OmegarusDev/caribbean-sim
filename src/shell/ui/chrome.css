@@ -628,7 +628,6 @@ button.danger {
   cursor: grab;
   touch-action: none;
   user-select: none;
-  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45));
 }
 
 .wheel-ctl:active {
@@ -637,6 +636,7 @@ button.danger {
 
 .wheel-graphic {
   width: min(100%, 1400px);
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45));
 }
 
 .wheel-ctl svg {
@@ -795,10 +795,14 @@ button.danger {
   transition: transform 70ms ease;
 }
 
-.fire-ctl.is-ready .fire-btn {
-  fill: rgba(192, 68, 68, 0.32);
-  stroke: var(--danger);
-  animation: fire-pulse 1.1s ease-in-out infinite;
+.fire-glow {
+  fill: rgba(255, 92, 60, 0);
+  pointer-events: none;
+}
+
+.fire-ctl.is-ready .fire-glow {
+  fill: rgba(255, 92, 60, 0.35);
+  animation: fire-glow-pulse 1.1s ease-in-out infinite;
 }
 
 .fire-label {
@@ -816,16 +820,19 @@ button.danger {
 .fire-ctl.is-flash .fire-btn {
   fill: rgba(255, 84, 60, 0.55);
   stroke: #ff6a55;
-  animation: none;
 }
 
-@keyframes fire-pulse {
+.fire-ctl.is-flash .fire-glow {
+  fill: rgba(255, 92, 60, 0.55);
+}
+
+@keyframes fire-glow-pulse {
   0%,
   100% {
-    filter: drop-shadow(0 0 4px rgba(220, 60, 50, 0.45));
+    opacity: 0.25;
   }
   50% {
-    filter: drop-shadow(0 0 16px rgba(255, 92, 60, 0.95));
+    opacity: 1;
   }
 }
 

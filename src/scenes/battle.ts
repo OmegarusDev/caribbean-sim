@@ -612,35 +612,12 @@ export class BattleScene implements Scene {
 
   private refreshHud(): void {
     if (!this.root) return;
+    // Cheap reads update every frame — the caption, wind arrow and ferocity
+    // bar lurch when throttled to 20 frames.
+    this.updateCaption();
+    this.updateChips();
+
     if (!this.hudDirty && this.hudTick % 20 !== 0) return;
-
-    if (this.captionEl) {
-      const text = this.caption ?? (this.paused ? 'Paused' : '');
-      if (this.captionEl.textContent !== text) this.captionEl.textContent = text;
-    }
-
-    if (this.ferocityEl) {
-      const ratio = Math.min(1, this.spectacle.score / 300);
-      const fill = this.ferocityEl.querySelector<HTMLElement>('.chip-fill');
-      if (fill) {
-        fill.style.width = `${Math.round(ratio * 100)}%`;
-        fill.style.background = ratio > 0.8 ? '#c06655' : '#d4a94f';
-      }
-    }
-
-    if (this.windEl) {
-      const arrow = this.windEl.querySelector<HTMLElement>('.chip-arrow');
-      const wind = this.battle.getWind();
-      if (arrow) {
-        // '➤' points east (0 rad); sim angles run counter-clockwise from
-        // +x, so a clockwise CSS rotation of -dir shows the true bearing.
-        arrow.style.transform = `rotate(${(-wind.dir * 180) / Math.PI}deg)`;
-      }
-      const label = this.windEl.querySelector<HTMLElement>('.chip-wind-label');
-      if (label) {
-        label.textContent = `Wind ${Math.round(wind.strength * 100)}%`;
-      }
-    }
 
     const speedBtns = this.root.querySelectorAll<HTMLButtonElement>('[data-speed]');
     speedBtns.forEach((b) => {
@@ -674,6 +651,36 @@ export class BattleScene implements Scene {
     }
 
     this.hudDirty = false;
+  }
+
+  private updateCaption(): void {
+    if (!this.captionEl) return;
+    const text = this.caption ?? (this.paused ? 'Paused' : '');
+    if (this.captionEl.textContent !== text) this.captionEl.textContent = text;
+  }
+
+  private updateChips(): void {
+    if (this.ferocityEl) {
+      const ratio = Math.min(1, this.spectacle.score / 300);
+      const fill = this.ferocityEl.querySelector<HTMLElement>('.chip-fill');
+      if (fill) {
+        fill.style.width = `${Math.round(ratio * 100)}%`;
+        fill.style.background = ratio > 0.8 ? '#c06655' : '#d4a94f';
+      }
+    }
+    if (this.windEl) {
+      const arrow = this.windEl.querySelector<HTMLElement>('.chip-arrow');
+      const wind = this.battle.getWind();
+      if (arrow) {
+        // '➤' points east (0 rad); sim angles run counter-clockwise from
+        // +x, so a clockwise CSS rotation of -dir shows the true bearing.
+        arrow.style.transform = `rotate(${(-wind.dir * 180) / Math.PI}deg)`;
+      }
+      const label = this.windEl.querySelector<HTMLElement>('.chip-wind-label');
+      if (label) {
+        label.textContent = `Wind ${Math.round(wind.strength * 100)}%`;
+      }
+    }
   }
 
   private inspectHtml(ship: ShipState): string {
