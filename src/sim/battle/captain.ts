@@ -19,7 +19,7 @@ import type { CaptainPhase, ShipIntention, ShipState } from './types';
 
 const NO_SAIL_ANGLE = 0.96; // rad — pinching harder than this is impossible
 const PHASE_EVAL_TICKS = 5; // re-evaluate the phase every ~2s of sim time
-const TACK_FLIP_TICKS = 150;
+const TACK_FLIP_TICKS = 260; // ~13s per beat — the weighty helm needs the tack to develop
 
 export function updateCaptain(
   ship: ShipState,
@@ -95,7 +95,11 @@ export function updateCaptain(
   const diff = normalizeAngle(aim - ship.heading);
   const noise =
     ((ship.captain.focus - 50) / 100) * 0.35 + ((100 - ship.captain.skill) / 100) * 0.3;
-  ship.rudder = clamp((diff + rng.range(-noise, noise)) * 2.0 / cls.turnRate, -1, 1);
+  // The hull carries angular momentum now, so a plain proportional helm
+  // overshoots every tack. A real steersman anticipates: the demand
+  // damps against the ship's own turning rate.
+  const damping = ship.yawRate * 0.5 / cls.turnRate;
+  ship.rudder = clamp((diff + rng.range(-noise, noise)) * 2.0 / cls.turnRate - damping, -1, 1);
   ship.intention = intentionFor(phase);
 }
 

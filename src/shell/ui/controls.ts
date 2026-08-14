@@ -3,16 +3,25 @@
  *
  * The wheel is the shallow top arc of a HUGE wheel whose centre sits far
  * below the screen — it spans the whole bottom edge. Dragging (or scrolling)
- * rotates the spokes and pegs exactly like a real helm: a big wheel turns
+ * rotates the spokes and grips exactly like a real helm: a big wheel turns
  * little for full lock, so a complete rudder is a modest sweep of the
  * visible spokes. The wheel stays where you leave it — no spring.
+ *
+ * The helm is drawn like a real ship's wheel: a thick wooden rail whose
+ * polished lip catches the light (radial wood gradient), twelve tapered
+ * spokes mortised through it, and hand-grips sticking out past the rim.
+ * It glides to the helm's position rather than snapping — a heavy wheel.
  * Sail slider: vertical, top = full sail.
  */
 
 const WHEEL_MAX_DEG = 55;
 const WHEEL_CX = 400;
 const WHEEL_CY = 700;
-const WHEEL_R = 680;
+const WHEEL_R = 676;
+const WHEEL_SPOKES = 12;
+const RAIL_IN = 650;
+const GRIP_IN = 678;
+const GRIP_OUT = 698;
 
 export class WheelControl {
   readonly el: HTMLElement;
@@ -29,33 +38,64 @@ export class WheelControl {
     // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 0 800 130" aria-hidden="true">
+        <svg viewBox="0 0 800 142" aria-hidden="true">
+          <defs>
+            <radialGradient id="wheelRailWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
+              <stop offset="0.961" stop-color="#3a2614"/>
+              <stop offset="0.985" stop-color="#8a5a2d"/>
+              <stop offset="0.998" stop-color="#6a4522"/>
+              <stop offset="1" stop-color="#241708"/>
+            </radialGradient>
+            <radialGradient id="wheelFarShade" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}">
+              <stop offset="0.9" stop-color="#000" stop-opacity="0"/>
+              <stop offset="1" stop-color="#000" stop-opacity="0.4"/>
+            </radialGradient>
+          </defs>
           <g class="wheel-spin">
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R + 18}" class="wheel-rim"/>
-            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R + 2}" class="wheel-rim-inner"/>
-            ${this.spokes()}
+            <g class="wheel-spokes">${this.spokes()}</g>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}" class="wheel-rail"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${RAIL_IN}" class="wheel-rail-inner"/>
+            <circle cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="${WHEEL_R}" class="wheel-far-shade"/>
+            <g class="wheel-grips">${this.grips()}</g>
           </g>
-          <polygon class="wheel-pointer" points="400,4 389,18 411,18"/>
-          <line class="wheel-pointer-line" x1="400" y1="18" x2="400" y2="42"/>
+          <polygon class="wheel-pointer" points="400,6 389,20 411,20"/>
+          <line class="wheel-pointer-line" x1="400" y1="20" x2="400" y2="44"/>
         </svg>
       </div>`;
     this.spin = this.el.querySelector('.wheel-spin');
     this.bind();
   }
 
+  /** Tapered wooden spokes, mortised through the rail. */
   private spokes(): string {
     const out: string[] = [];
-    for (let i = 0; i < 16; i++) {
-      const a = (i * Math.PI) / 8;
-      const x = WHEEL_CX + Math.cos(a) * WHEEL_R;
-      const y = WHEEL_CY - Math.sin(a) * WHEEL_R;
-      const px = x.toFixed(1);
-      const py = y.toFixed(1);
+    for (let i = 0; i < WHEEL_SPOKES; i++) {
+      const a = Math.PI / 2 + (i * Math.PI * 2) / WHEEL_SPOKES;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const pt = (r: number, w: number): string =>
+        `${(WHEEL_CX + ca * r - sa * w).toFixed(1)},${(WHEEL_CY - sa * r - ca * w).toFixed(1)}`;
       out.push(
-        `<line class="wheel-spoke-dark" x1="${WHEEL_CX}" y1="${WHEEL_CY}" x2="${px}" y2="${py}"/>`,
-        `<line class="wheel-spoke" x1="${WHEEL_CX}" y1="${WHEEL_CY}" x2="${px}" y2="${py}"/>`,
-        `<circle class="wheel-peg" cx="${px}" cy="${py}" r="7.5"/>`,
-        `<circle class="wheel-peg-hole" cx="${px}" cy="${py}" r="3.4"/>`,
+        `<polygon class="wheel-spoke" points="${pt(644, 6)} ${pt(674, 3.4)} ${pt(674, -3.4)} ${pt(644, -6)}"/>`,
+      );
+    }
+    return out.join('');
+  }
+
+  /** Hand-grips sticking out past the rail, one on every spoke. */
+  private grips(): string {
+    const out: string[] = [];
+    for (let i = 0; i < WHEEL_SPOKES; i++) {
+      const a = Math.PI / 2 + (i * Math.PI * 2) / WHEEL_SPOKES;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const x1 = (WHEEL_CX + ca * GRIP_IN).toFixed(1);
+      const y1 = (WHEEL_CY - sa * GRIP_IN).toFixed(1);
+      const x2 = (WHEEL_CX + ca * GRIP_OUT).toFixed(1);
+      const y2 = (WHEEL_CY - sa * GRIP_OUT).toFixed(1);
+      out.push(
+        `<line class="wheel-grip" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`,
+        `<circle class="wheel-grip-cap" cx="${x2}" cy="${y2}" r="3.2"/>`,
       );
     }
     return out.join('');

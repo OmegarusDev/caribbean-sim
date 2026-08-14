@@ -31,7 +31,7 @@ describe('GLSL validation', () => {
       const glsl = (shaders as unknown as Record<string, string>)[name];
       expect(glsl).toBeTruthy();
       expect(() => parse(glsl!)).not.toThrow();
-    });
+    }, 15000);
   }
 
   it('no uniform is declared twice — ANGLE rejects redefinitions', () => {

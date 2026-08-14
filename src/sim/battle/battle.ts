@@ -684,6 +684,7 @@ function createShip(
     sailState: 1,
     rudder: 0,
     rudderSmoothed: 0,
+    yawRate: 0,
     hull: cls.maxHull,
     maxHull: cls.maxHull,
     sails: cls.maxSails,
@@ -767,9 +768,10 @@ export function applyShipPhysics(
   const cls = HULL_CLASSES[ship.hullClass];
   const dt = BATTLE_TICK;
 
-  // Helm lag: the actual rudder angle eases toward the demand.
+  // Helm lag: the actual rudder angle eases toward the demand — a heavy
+  // wheel, not a light switch.
   ship.rudderSmoothed +=
-    (ship.rudder - ship.rudderSmoothed) * Math.min(1, dt * 2.2);
+    (ship.rudder - ship.rudderSmoothed) * Math.min(1, dt * 2.0);
 
   const hvx = Math.cos(ship.heading);
   const hvy = Math.sin(ship.heading);
@@ -795,9 +797,15 @@ export function applyShipPhysics(
   ship.vy = hvy * newAlong + latY * latDamp;
 
   const way = clamp01(Math.abs(newAlong) / cls.baseSpeed);
-  const turn =
-    clamp(ship.rudderSmoothed, -1, 1) * cls.turnRate * (0.25 + 0.75 * way) * dt;
-  ship.heading = normalizeAngle(ship.heading + turn);
+  // Rudder force grows with the square of the flow over the blade: a ship
+  // low in the water barely answers the helm, a fast one turns crisply.
+  const speedFactor = 0.2 + 0.8 * way * way;
+  const commanded =
+    clamp(ship.rudderSmoothed, -1, 1) * cls.turnRate * speedFactor;
+  // Angular momentum: the hull's turn rate eases toward the command and
+  // carries on when the helm centres — the weight of the sea.
+  ship.yawRate += (commanded - ship.yawRate) * Math.min(1, dt * 2.2);
+  ship.heading = normalizeAngle(ship.heading + ship.yawRate * dt);
 
   ship.x += ship.vx * dt;
   ship.y += ship.vy * dt;

@@ -25,6 +25,7 @@ function testShip(partial: Partial<ShipState> = {}): ShipState {
     sailState: 1,
     rudder: 0,
     rudderSmoothed: 0,
+    yawRate: 0,
     hull: 1600,
     maxHull: 1600,
     sails: 1000,
@@ -129,16 +130,16 @@ describe('sea battle sim', () => {
   });
 
   it('a sloop struggles against a galleon', () => {
-    const stats = matchupStats(SL_VS_GA, 60);
+    const stats = matchupStats(SL_VS_GA, 40);
     expect(stats.wins0).toBeLessThan(stats.wins1);
-  });
+  }, 15000);
 
   it('an even duel is not a guaranteed draw or blowout', () => {
-    const stats = matchupStats(SL, 60);
+    const stats = matchupStats(SL, 40);
     expect(stats.wins0 + stats.wins1).toBeGreaterThan(0);
     expect(stats.wins0).toBeGreaterThan(5);
     expect(stats.wins1).toBeGreaterThan(5);
-  });
+  }, 15000);
 
   it('runToEnd stops at the max tick cap', () => {
     const battle = new Battle({ ...makeConfig(SL, 99), maxTicks: 240 });

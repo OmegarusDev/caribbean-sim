@@ -60,6 +60,12 @@ export interface ShipState {
   rudder: number;
   /** Actual helm angle — lags the demand so steering has weight. */
   rudderSmoothed: number;
+  /**
+   * The hull's turn rate — angular momentum. It builds toward the commanded
+   * turn and decays when the helm centres: a ship keeps turning after you
+   * let go, then slowly straightens. This is the weight of the sea.
+   */
+  yawRate: number;
   hull: number;
   maxHull: number;
   sails: number;

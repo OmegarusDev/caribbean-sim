@@ -19,6 +19,7 @@ function testShip(partial: Partial<ShipState> = {}): ShipState {
     sailState: 1,
     rudder: 0,
     rudderSmoothed: 0,
+    yawRate: 0,
     hull: 1600,
     maxHull: 1600,
     sails: 1000,

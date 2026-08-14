@@ -137,6 +137,7 @@ export function makePreviewShip(
     sailState: 1,
     rudder: 0,
     rudderSmoothed: 0,
+    yawRate: 0,
     hull: cls.maxHull,
     maxHull: cls.maxHull,
     sails: cls.maxSails,

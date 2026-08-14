@@ -645,44 +645,41 @@ button.danger {
   height: auto;
 }
 
+/* The wheel is a heavy machine: it glides to the helm's position. */
 .wheel-spin {
   transform-origin: 400px 700px;
+  transition: transform 120ms ease-out;
 }
 
-.wheel-rim {
-  stroke: var(--gold);
-  stroke-width: 6;
+.wheel-rail {
+  fill: url(#wheelRailWood);
+}
+
+.wheel-rail-inner {
   fill: none;
-  opacity: 0.95;
-}
-
-.wheel-rim-inner {
-  stroke: #8a6a34;
+  stroke: #241708;
   stroke-width: 2;
-  fill: none;
-  opacity: 0.65;
+  opacity: 0.85;
 }
 
-.wheel-spoke-dark {
-  stroke: rgba(18, 14, 9, 0.85);
-  stroke-width: 11;
-  stroke-linecap: round;
+/* The far side of the wheel curves away — the arc darkens toward its lip. */
+.wheel-far-shade {
+  fill: url(#wheelFarShade);
+  pointer-events: none;
 }
 
 .wheel-spoke {
-  stroke: var(--wood-light);
-  stroke-width: 6;
+  fill: #3f2a15;
+}
+
+.wheel-grip {
+  stroke: #6e4522;
+  stroke-width: 9;
   stroke-linecap: round;
 }
 
-.wheel-peg {
-  fill: var(--gold);
-  stroke: #8a6a34;
-  stroke-width: 1.5;
-}
-
-.wheel-peg-hole {
-  fill: #3a2c18;
+.wheel-grip-cap {
+  fill: #2b1c0d;
 }
 
 .wheel-pointer {
