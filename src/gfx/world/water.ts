@@ -2,8 +2,7 @@
 import type { GlContext } from '../core/context';
 import type { GlProgram } from '../core/shader';
 import { createProgram } from '../core/shader';
-import { WATER_FS } from '../core/shaders';
-import { buildWaterVS } from './waves';
+import { WATER_VS, WATER_FS } from '../core/shaders';
 import { createMesh, type GlMesh } from '../core/mesh';
 import { getProceduralTexture, hashNoise } from '../core/texture';
 import type { Camera3d } from '../core/camera';
@@ -42,7 +41,7 @@ export class Water {
   private readonly uCenter = new Float32Array(2);
 
   constructor(private readonly gl: GlContext) {
-    this.program = createProgram(gl.gl, buildWaterVS(), WATER_FS);
+    this.program = createProgram(gl.gl, WATER_VS, WATER_FS);
     const { positions, indices } = buildWaterGrid();
     this.mesh = createMesh(gl.gl, {
       positions,

@@ -129,6 +129,29 @@ void main() {
   frag = vec4(v_color.rgb, 0.9);
 }`;
 
+export const WATER_VS = `${COMMON_HEAD}
+layout(location=0) in vec3 aPos;
+
+uniform vec2 u_center;
+uniform float u_time;
+uniform mat4 u_viewProj;
+
+out vec3 v_world;
+out float v_height;
+
+void main() {
+  vec3 worldPos = vec3(u_center.x + aPos.x, 0.0, u_center.y + aPos.z);
+  float h = 0.0;
+  h += sin(dot(worldPos.xz, vec2(0.943858, 0.330350)) * 0.004 + u_time * 0.35) * 0.9;
+  h += sin(dot(worldPos.xz, vec2(-0.658505, 0.752577)) * 0.0065 + u_time * 0.5) * 0.6;
+  h += sin(dot(worldPos.xz, vec2(0.242536, -0.970143)) * 0.011 + u_time * 0.7) * 0.35;
+  h += sin(dot(worldPos.xz, vec2(0.993884, 0.110432)) * 0.02 + u_time * 1.0) * 0.22;
+  h += sin(dot(worldPos.xz, vec2(-0.447214, 0.894427)) * 0.038 + u_time * 1.4) * 0.14;
+  v_height = h;
+  v_world = vec3(worldPos.x, h, worldPos.z);
+  gl_Position = u_viewProj * vec4(v_world, 1.0);
+}`;
+
 export const WATER_FS = `${COMMON_HEAD}
 in vec3 v_world;
 in float v_height;

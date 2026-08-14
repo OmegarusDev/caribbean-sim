@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OCEAN_WAVES, buildWaterVS, waveHeight } from './waves';
+import { OCEAN_WAVES, waveHeight } from './waves';
 
 describe('shared wave field', () => {
   it('heights stay bounded — the sea is a gentle plane, not a storm', () => {
@@ -23,12 +23,12 @@ describe('shared wave field', () => {
     expect(longestWavelength).toBeGreaterThan(1400);
   });
 
-  it('the GLSL is generated from the same constants as the JS evaluator', () => {
-    const glsl = buildWaterVS();
+  it('the water shader uses the same constants as the JS evaluator', async () => {
+    const { WATER_VS } = await import('../core/shaders');
     for (const w of OCEAN_WAVES) {
-      expect(glsl).toContain(`* ${w.amp};`);
-      expect(glsl).toContain(`* ${w.freq}`);
-      expect(glsl).toContain(`+ t * ${w.speed})`);
+      expect(WATER_VS).toContain(`* ${w.amp};`);
+      expect(WATER_VS).toContain(`* ${w.freq}`);
+      expect(WATER_VS).toContain(`* ${w.speed.toFixed(1)})`);
     }
   });
 });

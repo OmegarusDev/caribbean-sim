@@ -37,34 +37,3 @@ export function waveHeight(x: number, z: number, t: number): number {
   }
   return h;
 }
-
-/** The water vertex shader, generated from the SAME constants. */
-export function buildWaterVS(): string {
-  let waves = '';
-  for (const w of OCEAN_WAVES) {
-    const len = Math.hypot(w.dirX, w.dirY) || 1;
-    const dx = (w.dirX / len).toFixed(6);
-    const dy = (w.dirY / len).toFixed(6);
-    waves += `  h += sin(dot(p, vec2(${dx}, ${dy})) * ${w.freq} + t * ${w.speed}) * ${w.amp};\n`;
-  }
-  return `#version 300 es
-precision highp float;
-layout(location=0) in vec2 aPos;
-
-uniform vec2 u_center;
-uniform float u_time;
-uniform mat4 u_viewProj;
-
-out vec3 v_world;
-out float v_height;
-
-void main() {
-  vec2 wp = u_center + aPos;
-  vec2 p = wp;
-  float t = u_time;
-  float h = 0.0;
-${waves}  v_height = h;
-  v_world = vec3(wp.x, h, wp.y);
-  gl_Position = u_viewProj * vec4(v_world, 1.0);
-}`;
-}
