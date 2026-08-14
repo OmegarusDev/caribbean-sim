@@ -137,35 +137,23 @@ uniform float u_time;
 uniform mat4 u_viewProj;
 
 out vec3 v_world;
-out vec3 v_normal;
 out float v_height;
 
-float heightAt(vec2 p) {
-  float h = 0.0;
-  h += sin(dot(p, vec2(0.943858, 0.330350)) * 0.004 + u_time * 0.35) * 0.9;
-  h += sin(dot(p, vec2(-0.658505, 0.752577)) * 0.0065 + u_time * 0.5) * 0.6;
-  h += sin(dot(p, vec2(0.242536, -0.970143)) * 0.011 + u_time * 0.7) * 0.35;
-  h += sin(dot(p, vec2(0.993884, 0.110432)) * 0.02 + u_time * 1.0) * 0.22;
-  h += sin(dot(p, vec2(-0.447214, 0.894427)) * 0.038 + u_time * 1.4) * 0.14;
-  return h;
-}
-
 void main() {
-  vec2 wp = u_center + aPos.xz;
-  float h = heightAt(wp);
-  // Analytic surface slope via central differences — real wave normals.
-  float e = 6.0;
-  float hx = heightAt(wp + vec2(e, 0.0)) - heightAt(wp - vec2(e, 0.0));
-  float hz = heightAt(wp + vec2(0.0, e)) - heightAt(wp - vec2(0.0, e));
-  v_normal = normalize(vec3(-hx, 2.0 * e, -hz));
+  vec3 worldPos = vec3(u_center.x + aPos.x, 0.0, u_center.y + aPos.z);
+  float h = 0.0;
+  h += sin(dot(worldPos.xz, vec2(0.943858, 0.330350)) * 0.004 + u_time * 0.35) * 0.9;
+  h += sin(dot(worldPos.xz, vec2(-0.658505, 0.752577)) * 0.0065 + u_time * 0.5) * 0.6;
+  h += sin(dot(worldPos.xz, vec2(0.242536, -0.970143)) * 0.011 + u_time * 0.7) * 0.35;
+  h += sin(dot(worldPos.xz, vec2(0.993884, 0.110432)) * 0.02 + u_time * 1.0) * 0.22;
+  h += sin(dot(worldPos.xz, vec2(-0.447214, 0.894427)) * 0.038 + u_time * 1.4) * 0.14;
   v_height = h;
-  v_world = vec3(wp.x, h, wp.y);
+  v_world = vec3(worldPos.x, h, worldPos.z);
   gl_Position = u_viewProj * vec4(v_world, 1.0);
 }`;
 
 export const WATER_FS = `${COMMON_HEAD}
 in vec3 v_world;
-in vec3 v_normal;
 in float v_height;
 
 uniform vec3 u_eye;
@@ -179,32 +167,15 @@ out vec4 frag;
 
 void main() {
   vec3 col = mix(u_deep, u_mid, 0.55);
+  // Gentle long-scale shading — no static grid (it shimmered with camera
+  // motion and was dizzying); a slow tonal drift instead.
   float n = texture(u_tex, v_world.xz * 0.02).r;
   col += vec3(0.02, 0.03, 0.035) * (n - 0.5) * 1.2;
-
-  vec3 N = normalize(v_normal);
-  // Animated shimmer: scroll the detail texture and perturb the normal.
-  float n1 = texture(u_tex, v_world.xz * 0.05 + vec2(u_time * 0.02, 0.0)).r - 0.5;
-  float n2 = texture(u_tex, v_world.xz * 0.09 - vec2(0.0, u_time * 0.03)).r - 0.5;
-  N = normalize(N + vec3(n1 * 0.35, 0.0, n2 * 0.35));
-
   float foam = smoothstep(0.8, 1.5, v_height);
   col = mix(col, vec3(0.78, 0.88, 0.9), foam * (0.4 + 0.8 * n));
-
-  vec3 V = normalize(u_eye - v_world);
-  // Fresnel: grazing water picks up the sky — the wet look.
-  float fres = pow(1.0 - max(dot(V, vec3(0.0, 1.0, 0.0)), 0.0), 4.0);
-  col = mix(col, u_horizon, fres * 0.5);
-
-  // Sun glitter: a tight round sparkle from the wave normals, plus the
-  // elongated glitter path beneath the sun — real water's tell.
-  vec3 R = reflect(-u_sunDir, N);
-  float spec = pow(max(dot(R, V), 0.0), 160.0);
-  vec3 H = normalize(u_sunDir + V);
-  float azDiff = 1.0 - abs(dot(normalize(H.xz), normalize(vec2(1.0, 0.35))));
-  float glitter = pow(max(H.y, 0.0), 30.0) * exp(-azDiff * 14.0);
-  col += vec3(1.0, 0.93, 0.75) * (spec * 0.7 + glitter * 0.5);
-
+  vec3 v = normalize(u_eye - v_world);
+  float spec = pow(max(dot(reflect(-u_sunDir, vec3(0.0, 1.0, 0.0)), v), 0.0), 130.0);
+  col += vec3(1.0, 0.93, 0.75) * spec * 0.7;
   float dist = length(u_eye - v_world);
   float fog = clamp((dist - 900.0) / 2200.0, 0.0, 1.0);
   col = mix(col, u_horizon, fog * 0.6);
