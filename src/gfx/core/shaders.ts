@@ -246,6 +246,10 @@ void main() {
   vec3 dir = normalize(w.xyz / w.w);
   float h = dir.y;
   vec3 col = mix(u_horizon, u_top, smoothstep(0.0, 0.4, h));
+
+  // Luminous haze band at the horizon — the water mirror reflects it.
+  float band = exp(-abs(h) * 12.0);
+  col = mix(col, u_horizon * 1.3, band * 0.35);
   col = mix(col, u_horizon * 0.6, smoothstep(0.02, -0.3, h) * 0.5);
   float c = texture(u_tex, dir.xz * 3.5 + vec2(u_time * 0.004, 0.0)).r;
   col = mix(col, u_cloudColor, smoothstep(0.55, 0.95, c) * u_cloudCover);

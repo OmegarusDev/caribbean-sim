@@ -5,6 +5,7 @@ import { createProgram } from '../core/shader';
 import { WATER_VS, WATER_FS } from '../core/shaders';
 import { createMesh, type GlMesh } from '../core/mesh';
 import { getProceduralTexture, hashNoise } from '../core/texture';
+import { tileableNormal } from './ocean';
 import type { Camera3d } from '../core/camera';
 import type { Atmosphere } from './atmosphere';
 
@@ -82,6 +83,18 @@ export class Water {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(this.program.uniform('u_tex'), 0);
+    const fine = getProceduralTexture(this.gl, 'ocean:norm-fine', { size: 64, repeat: true, pixel: tileableNormal(7, 4, 0.16) });
+    const coarse = getProceduralTexture(this.gl, 'ocean:norm-coarse', { size: 128, repeat: true, pixel: tileableNormal(23, 5, 0.1) });
+    if (fine) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, fine);
+      gl.uniform1i(this.program.uniform('u_normFine'), 1);
+    }
+    if (coarse) {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, coarse);
+      gl.uniform1i(this.program.uniform('u_normCoarse'), 2);
+    }
     }
     this.mesh.draw(gl, this.program);
   }
