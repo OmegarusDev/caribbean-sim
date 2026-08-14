@@ -43,7 +43,7 @@ export class WheelControl {
     // the graphic is the shallow arc of the huge wheel, centred inside it.
     this.el.innerHTML = `
       <div class="wheel-graphic">
-        <svg viewBox="0 -40 800 196" aria-hidden="true">
+        <svg viewBox="0 -52 800 208" aria-hidden="true">
           <defs>
             <radialGradient id="wheelRimWood" gradientUnits="userSpaceOnUse" cx="${WHEEL_CX}" cy="${WHEEL_CY}" r="692">
               <stop offset="0.925" stop-color="#241708"/>
@@ -150,12 +150,14 @@ export class WheelControl {
       const sa = Math.sin(a);
       // Align the droplet's axis with the spoke's outward direction.
       const deg = (Math.atan2(-sa, ca) * 180) / Math.PI;
-      // Seated inside the after felloe so the knob grows out of the wood.
-      const hx = (WHEEL_CX + ca * 711).toFixed(1);
-      const hy = (WHEEL_CY - sa * 711).toFixed(1);
+      // The droplet ROOT sits inside the after felloe (r=690, band 640-692):
+      // the knob grows out of the wood, never floats off it. The tip rounds
+      // off at r=748.
+      const hx = (WHEEL_CX + ca * 690).toFixed(1);
+      const hy = (WHEEL_CY - sa * 690).toFixed(1);
       const king = i === 0 ? ' wheel-king' : '';
       out.push(
-        `<path class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy}) translate(${hx} ${hy})" d="M0,-3.4 C4,-3.3 7,-2.8 11,-4.4 C17,-6.4 26,-7.2 36,-4.4 C43,-2.6 45.5,-1.2 46,0 C45.5,1.2 43,2.6 36,4.4 C26,7.2 17,6.4 11,4.4 C7,2.8 4,3.3 0,3.4 Z"/>`,
+        `<path class="wheel-handle${king}" transform="rotate(${deg.toFixed(1)} ${hx} ${hy}) translate(${hx} ${hy})" d="M0,-4.2 C5,-4 8,-3.2 14,-5.4 C22,-8 33,-8.8 46,-5.2 C54,-3 57,-1.4 58,0 C57,1.4 54,3 46,5.2 C33,8.8 22,8 14,5.4 C8,3.2 5,4 0,4.2 Z"/>`,
       );
     }
     return out.join('');

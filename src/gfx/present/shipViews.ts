@@ -74,7 +74,10 @@ export function shipToEntity(s: ShipState, opts: ShipEntityOpts): WorldEntity {
     pitch,
     roll,
     scale: 1,
-    radius: cls.length * 0.8,
+    // The sphere must contain the whole ship — masts reach 0.95*L above
+    // the waterline, the bowsprit 0.78*L forward. A tight sphere pops ships
+    // out of the frustum while their hulls are still on screen.
+    radius: cls.length * 1.15,
     stripe: TEAM_STRIPE[s.team],
     flag: TEAM_FLAG[s.team],
     // Visual sail size: damage tatters, but reefing (sailState) visibly

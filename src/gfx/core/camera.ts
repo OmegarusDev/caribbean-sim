@@ -126,9 +126,17 @@ export class Camera3d {
       this.smoothX = center.x;
       this.smoothZ = center.y;
       const spread = this.fleetSpread(points);
-      const constraintHalf = Math.min(this.vfovHalf, Math.tan(this.vfovHalf) * this.aspect);
-      this.smoothDolly = clamp((spread * 0.85) / (2 * Math.max(1e-3, constraintHalf)), 260, 1500);
       this.smoothPitch = clamp(0.42 + spread / 2600, 0.32, 1.15);
+      // Lanista's director: fit the group's span on BOTH axes with generous
+      // padding. The depth is foreshortened by the pitch (sin), so a line of
+      // ships stretching away needs a deeper dolly than their flat span alone.
+      const constraintHalf = Math.min(this.vfovHalf, Math.tan(this.vfovHalf) * this.aspect);
+      const halfW = 260 + spread * 0.55;
+      const dollyW = halfW / Math.max(1e-3, constraintHalf);
+      const depth = this.fleetDepth(points);
+      const halfD = 130 + depth * 0.45;
+      const dollyD = (halfD * Math.sin(this.smoothPitch)) / Math.max(1e-3, Math.tan(this.vfovHalf));
+      this.smoothDolly = clamp(Math.max(dollyW, dollyD), 260, 1500);
     } else if (this.interestLife > 0) {
       this.smoothX = this.interestX ?? this.smoothX;
       this.smoothZ = this.interestZ ?? this.smoothZ;
@@ -166,6 +174,22 @@ export class Camera3d {
       y += p.y;
     }
     return { x: x / points.length, y: y / points.length };
+  }
+
+  /** The fleet's extent ALONG the camera's view axis — a line of ships
+   *  stretching away from the camera needs the extra dolly. */
+  private fleetDepth(points: Array<{ x: number; y: number }>): number {
+    if (points.length < 2) return 0;
+    const fx = Math.cos(this.yaw);
+    const fz = Math.sin(this.yaw);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const p of points) {
+      const d = p.x * fx + p.y * fz;
+      if (d < min) min = d;
+      if (d > max) max = d;
+    }
+    return Math.max(0, max - min);
   }
 
   private fleetSpread(points: Array<{ x: number; y: number }>): number {
